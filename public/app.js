@@ -1,61 +1,40 @@
-// Ollama AI Chat - Frontend JavaScript
+// Claude-like Ollama AI Website
+// Main Application JavaScript
 
-class OllamaChatApp {
+class ClaudeApp {
     constructor() {
+        // DOM Elements
         this.sidebar = document.getElementById('sidebar');
-        this.mainContent = document.getElementById('mainContent');
         this.chatList = document.getElementById('chatList');
         this.messagesContainer = document.getElementById('messagesContainer');
         this.messageInput = document.getElementById('messageInput');
         this.sendBtn = document.getElementById('sendBtn');
         this.newChatBtn = document.getElementById('newChatBtn');
         this.chatHeader = document.getElementById('chatHeader');
+        this.chatTitle = document.getElementById('chatTitle');
         this.modelSelect = document.getElementById('modelSelect');
-        this.newChatModel = document.getElementById('newChatModel');
-        this.modelName = document.getElementById('modelName');
         this.deleteChatBtn = document.getElementById('deleteChatBtn');
         this.welcomeMessage = document.getElementById('welcomeMessage');
-        this.ollamaUrl = document.getElementById('ollamaUrl');
-        
-        this.userInfo = document.getElementById('userInfo');
+        this.userAvatar = document.getElementById('userAvatar');
         this.userInitial = document.getElementById('userInitial');
         this.userName = document.getElementById('userName');
-        this.userEmail = document.getElementById('userEmail');
-        this.loginBtn = document.getElementById('loginBtn');
-        this.registerBtn = document.getElementById('registerBtn');
+        this.adminBtn = document.getElementById('adminBtn');
         this.logoutBtn = document.getElementById('logoutBtn');
+        this.mobileMenuBtn = document.getElementById('mobileMenuBtn');
         
-        this.loginModal = document.getElementById('loginModal');
-        this.registerModal = document.getElementById('registerModal');
-        this.newChatModal = document.getElementById('newChatModal');
+        // Modals
         this.confirmModal = document.getElementById('confirmModal');
         this.loadingOverlay = document.getElementById('loadingOverlay');
         
-        this.closeLoginModal = document.getElementById('closeLoginModal');
-        this.closeRegisterModal = document.getElementById('closeRegisterModal');
-        this.closeNewChatModal = document.getElementById('closeNewChatModal');
-        this.closeConfirmModal = document.getElementById('closeConfirmModal');
-        
-        this.loginForm = document.getElementById('loginForm');
-        this.registerForm = document.getElementById('registerForm');
-        this.newChatForm = document.getElementById('newChatForm');
-        
-        this.showRegisterFromLogin = document.getElementById('showRegisterFromLogin');
-        this.showLoginFromRegister = document.getElementById('showLoginFromRegister');
-        
-        this.confirmTitle = document.getElementById('confirmTitle');
-        this.confirmMessage = document.getElementById('confirmMessage');
-        this.cancelConfirm = document.getElementById('cancelConfirm');
-        this.confirmAction = document.getElementById('confirmAction');
-        
-        this.toggleSidebarBtn = document.getElementById('toggleSidebar');
-        
+        // State
         this.currentChatId = null;
-        this.currentModel = 'llama3';
-        this.models = [];
+        this.currentModel = 'llama3.2';
+        this.models = ['llama3.2'];
         this.user = null;
         this.isSending = false;
+        this.confirmAction = null;
         
+        // Initialize
         this.init();
     }
     
@@ -64,68 +43,69 @@ class OllamaChatApp {
         this.loadModels();
         this.checkSession();
         this.updateUI();
-        
-        this.ollamaUrl.textContent = window.location.origin.includes('192.168.10.181') 
-            ? 'http://192.168.10.181:11434' 
-            : 'http://192.168.10.181:11434';
     }
     
     setupEventListeners() {
-        this.toggleSidebarBtn.addEventListener('click', () => this.toggleSidebar());
-        this.newChatBtn.addEventListener('click', () => this.showNewChatModal());
-        this.sendBtn.addEventListener('click', () => this.sendMessage());
-        this.messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                this.sendMessage();
-            }
-        });
+        // Mobile menu toggle
+        if (this.mobileMenuBtn) {
+            this.mobileMenuBtn.addEventListener('click', () => this.toggleSidebar());
+        }
         
-        this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
+        // New chat button
+        if (this.newChatBtn) {
+            this.newChatBtn.addEventListener('click', () => this.createNewChat());
+        }
         
-        this.loginBtn.addEventListener('click', () => this.showLoginModal());
-        this.registerBtn.addEventListener('click', () => this.showRegisterModal());
-        this.logoutBtn.addEventListener('click', () => this.logout());
+        // Send message
+        if (this.sendBtn) {
+            this.sendBtn.addEventListener('click', () => this.sendMessage());
+        }
         
-        this.closeLoginModal.addEventListener('click', () => this.closeLoginModal());
-        this.closeRegisterModal.addEventListener('click', () => this.closeRegisterModal());
-        this.closeNewChatModal.addEventListener('click', () => this.closeNewChatModal());
-        this.closeConfirmModal.addEventListener('click', () => this.closeConfirmModal());
-        
-        [this.loginModal, this.registerModal, this.newChatModal, this.confirmModal].forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    this.closeAllModals();
+        // Input events
+        if (this.messageInput) {
+            this.messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
                 }
             });
-        });
+            this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
+        }
         
-        this.showRegisterFromLogin.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.closeLoginModal();
-            this.showRegisterModal();
-        });
+        // Admin button
+        if (this.adminBtn) {
+            this.adminBtn.addEventListener('click', () => {
+                window.location.href = '/admin';
+            });
+        }
         
-        this.showLoginFromRegister.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.closeRegisterModal();
-            this.showLoginModal();
-        });
+        // Logout button
+        if (this.logoutBtn) {
+            this.logoutBtn.addEventListener('click', () => this.logout());
+        }
         
-        this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
-        this.registerForm.addEventListener('submit', (e) => this.handleRegister(e));
-        this.newChatForm.addEventListener('submit', (e) => this.handleNewChat(e));
+        // Delete chat
+        if (this.deleteChatBtn) {
+            this.deleteChatBtn.addEventListener('click', () => this.confirmDeleteChat());
+        }
         
-        this.deleteChatBtn.addEventListener('click', () => this.confirmDeleteChat());
+        // Model select change
+        if (this.modelSelect) {
+            this.modelSelect.addEventListener('change', (e) => {
+                this.currentModel = e.target.value;
+            });
+        }
         
-        this.cancelConfirm.addEventListener('click', () => this.closeConfirmModal());
-        this.confirmAction.addEventListener('click', () => this.executeConfirmAction());
+        // Modal close on outside click
+        if (this.confirmModal) {
+            this.confirmModal.addEventListener('click', (e) => {
+                if (e.target === this.confirmModal) {
+                    this.closeConfirmModal();
+                }
+            });
+        }
         
-        this.modelSelect.addEventListener('change', (e) => {
-            this.currentModel = e.target.value;
-            this.modelName.textContent = this.currentModel;
-        });
-        
+        // Close modals with Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeAllModals();
@@ -138,7 +118,7 @@ class OllamaChatApp {
             const response = await fetch('/api/session');
             const data = await response.json();
             
-            if (data.user) {
+            if (data.success && data.user) {
                 this.user = data.user;
                 this.updateUserInfo();
                 this.loadChats();
@@ -146,7 +126,6 @@ class OllamaChatApp {
                 this.user = null;
                 this.updateUserInfo();
             }
-            
             this.updateUI();
         } catch (error) {
             console.error('Session check error:', error);
@@ -158,267 +137,75 @@ class OllamaChatApp {
             const response = await fetch('/api/models');
             const data = await response.json();
             
-            this.models = data.models || ['llama3', 'llama3.2', 'mistral', 'phi3'];
-            this.updateModelSelect(this.modelSelect, this.currentModel);
-            this.updateModelSelect(this.newChatModel, this.currentModel);
-            
-            if (this.models.length > 0) {
-                this.currentModel = this.models[0];
-                this.modelName.textContent = this.currentModel;
+            if (data.success && data.models) {
+                this.models = data.models;
+                this.updateModelSelect();
             }
         } catch (error) {
             console.error('Load models error:', error);
-            this.models = ['llama3', 'llama3.2', 'mistral', 'phi3'];
-            this.updateModelSelect(this.modelSelect, this.currentModel);
-            this.updateModelSelect(this.newChatModel, this.currentModel);
         }
     }
     
-    updateModelSelect(selectElement, selectedValue) {
-        selectElement.innerHTML = '';
+    updateModelSelect() {
+        if (!this.modelSelect) return;
+        
+        this.modelSelect.innerHTML = '';
         this.models.forEach(model => {
             const option = document.createElement('option');
             option.value = model;
             option.textContent = model;
-            if (model === selectedValue) {
+            if (model === this.currentModel) {
                 option.selected = true;
             }
-            selectElement.appendChild(option);
+            this.modelSelect.appendChild(option);
         });
-        
-        if (!this.models.includes('llama3')) {
-            const option = document.createElement('option');
-            option.value = 'llama3';
-            option.textContent = 'llama3';
-            selectElement.appendChild(option);
-        }
     }
     
     updateUserInfo() {
+        if (!this.userAvatar || !this.userInitial || !this.userName) return;
+        
         if (this.user) {
             this.userInitial.textContent = this.user.username.charAt(0).toUpperCase();
             this.userName.textContent = this.user.username;
-            this.userEmail.textContent = this.user.email;
         } else {
-            this.userInitial.textContent = '?';
-            this.userName.textContent = 'Guest';
-            this.userEmail.textContent = '';
+            this.userInitial.textContent = 'U';
+            this.userName.textContent = 'User';
         }
     }
     
     updateUI() {
         const isAuthenticated = this.user !== null;
-        this.loginBtn.style.display = isAuthenticated ? 'none' : 'block';
-        this.registerBtn.style.display = isAuthenticated ? 'none' : 'block';
-        this.logoutBtn.style.display = isAuthenticated ? 'block' : 'none';
-        this.messageInput.disabled = !isAuthenticated;
-        this.sendBtn.disabled = !isAuthenticated;
-        this.newChatBtn.disabled = !isAuthenticated;
-        this.welcomeMessage.style.display = isAuthenticated ? 'none' : 'block';
+        
+        if (this.messageInput) {
+            this.messageInput.disabled = !isAuthenticated;
+        }
+        if (this.sendBtn) {
+            this.sendBtn.disabled = !isAuthenticated;
+        }
+        if (this.newChatBtn) {
+            this.newChatBtn.disabled = !isAuthenticated;
+        }
+        
+        if (this.adminBtn) {
+            this.adminBtn.style.display = isAuthenticated && this.user && this.user.isAdmin ? 'flex' : 'none';
+        }
+        
+        if (this.welcomeMessage) {
+            this.welcomeMessage.style.display = isAuthenticated ? 'none' : 'flex';
+        }
     }
     
     toggleSidebar() {
-        this.sidebar.classList.toggle('active');
+        if (this.sidebar) {
+            this.sidebar.classList.toggle('active');
+        }
     }
     
-    showLoginModal() {
-        this.closeAllModals();
-        this.loginModal.classList.add('active');
-        document.getElementById('loginUsername').focus();
-    }
-    
-    closeLoginModal() {
-        this.loginModal.classList.remove('active');
-        this.loginForm.reset();
-    }
-    
-    showRegisterModal() {
-        this.closeAllModals();
-        this.registerModal.classList.add('active');
-        document.getElementById('registerUsername').focus();
-    }
-    
-    closeRegisterModal() {
-        this.registerModal.classList.remove('active');
-        this.registerForm.reset();
-    }
-    
-    showNewChatModal() {
-        this.closeAllModals();
-        this.newChatModal.classList.add('active');
-        document.getElementById('chatTitle').focus();
-    }
-    
-    closeNewChatModal() {
-        this.newChatModal.classList.remove('active');
-        this.newChatForm.reset();
-    }
-    
-    showConfirmModal(title, message, action) {
-        this.confirmTitle.textContent = title;
-        this.confirmMessage.textContent = message;
-        this.confirmAction.onclick = action;
-        this.confirmModal.classList.add('active');
-    }
-    
-    closeConfirmModal() {
-        this.confirmModal.classList.remove('active');
-        this.confirmAction.onclick = null;
-    }
-    
-    closeAllModals() {
-        this.closeLoginModal();
-        this.closeRegisterModal();
-        this.closeNewChatModal();
-        this.closeConfirmModal();
-    }
-    
-    async handleLogin(e) {
-        e.preventDefault();
-        const username = document.getElementById('loginUsername').value;
-        const password = document.getElementById('loginPassword').value;
-        
-        if (!username || !password) {
-            this.showError('Please fill in all fields');
+    async createNewChat() {
+        if (!this.user) {
+            window.location.href = '/login';
             return;
         }
-        
-        this.showLoading();
-        
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                this.user = data.user;
-                this.updateUserInfo();
-                this.updateUI();
-                this.closeLoginModal();
-                this.loadChats();
-                this.showSuccess('Logged in successfully!');
-            } else {
-                this.showError(data.error || 'Login failed');
-            }
-        } catch (error) {
-            this.showError('Login failed. Please check your connection.');
-        } finally {
-            this.hideLoading();
-        }
-    }
-    
-    async handleRegister(e) {
-        e.preventDefault();
-        const username = document.getElementById('registerUsername').value;
-        const email = document.getElementById('registerEmail').value;
-        const password = document.getElementById('registerPassword').value;
-        
-        if (!username || !email || !password) {
-            this.showError('Please fill in all fields');
-            return;
-        }
-        
-        this.showLoading();
-        
-        try {
-            const response = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, email, password })
-            });
-            
-            const data = await response.json();
-            
-            if (response.ok) {
-                this.user = data.user;
-                this.updateUserInfo();
-                this.updateUI();
-                this.closeRegisterModal();
-                this.loadChats();
-                this.showSuccess('Registration successful!');
-            } else {
-                this.showError(data.error || 'Registration failed');
-            }
-        } catch (error) {
-            this.showError('Registration failed. Please check your connection.');
-        } finally {
-            this.hideLoading();
-        }
-    }
-    
-    async logout() {
-        this.showLoading();
-        
-        try {
-            const response = await fetch('/api/logout', {
-                method: 'POST'
-            });
-            
-            if (response.ok) {
-                this.user = null;
-                this.currentChatId = null;
-                this.updateUserInfo();
-                this.updateUI();
-                this.clearMessages();
-                this.clearChatList();
-                this.showSuccess('Logged out successfully!');
-            }
-        } catch (error) {
-            this.showError('Logout failed');
-        } finally {
-            this.hideLoading();
-        }
-    }
-    
-    async loadChats() {
-        if (!this.user) return;
-        
-        try {
-            const response = await fetch('/api/chats');
-            const data = await response.json();
-            this.renderChatList(data.chats);
-        } catch (error) {
-            console.error('Load chats error:', error);
-        }
-    }
-    
-    renderChatList(chats) {
-        this.chatList.innerHTML = '';
-        
-        if (chats.length === 0) {
-            const noChats = document.createElement('div');
-            noChats.className = 'no-chats';
-            noChats.textContent = 'No chats yet. Start a new conversation!';
-            this.chatList.appendChild(noChats);
-            return;
-        }
-        
-        chats.forEach(chat => {
-            const chatItem = document.createElement('div');
-            chatItem.className = 'chat-item';
-            if (this.currentChatId === chat.chat_id) {
-                chatItem.classList.add('active');
-            }
-            
-            chatItem.innerHTML = `
-                <span class="chat-icon">&#128172;</span>
-                <span class="chat-title">${chat.title || 'New Chat'}</span>
-                <span class="chat-date">${this.formatDate(chat.created_at)}</span>
-            `;
-            
-            chatItem.addEventListener('click', () => this.loadChat(chat.chat_id));
-            this.chatList.appendChild(chatItem);
-        });
-    }
-    
-    async handleNewChat(e) {
-        e.preventDefault();
-        const title = document.getElementById('chatTitle').value;
-        const model = this.newChatModel.value;
         
         this.showLoading();
         
@@ -426,16 +213,13 @@ class OllamaChatApp {
             const response = await fetch('/api/chats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, model })
+                body: JSON.stringify({ model: this.currentModel })
             });
             
             const data = await response.json();
             
-            if (response.ok) {
+            if (data.success) {
                 this.currentChatId = data.chat.chat_id;
-                this.currentModel = data.chat.model || model;
-                this.modelName.textContent = this.currentModel;
-                this.closeNewChatModal();
                 this.loadChats();
                 this.loadChat(this.currentChatId);
             } else {
@@ -448,53 +232,127 @@ class OllamaChatApp {
         }
     }
     
+    async loadChats() {
+        if (!this.user) return;
+        
+        try {
+            const response = await fetch('/api/chats');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderChatList(data.chats);
+            }
+        } catch (error) {
+            console.error('Load chats error:', error);
+        }
+    }
+    
+    renderChatList(chats) {
+        if (!this.chatList) return;
+        
+        this.chatList.innerHTML = '';
+        
+        if (!chats || chats.length === 0) {
+            const noChats = document.createElement('div');
+            noChats.className = 'no-chats';
+            noChats.innerHTML = `
+                <svg class="no-chats-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <p>No chats yet</p>
+                <p class="no-chats-sub">Start a conversation</p>
+            `;
+            this.chatList.appendChild(noChats);
+            return;
+        }
+        
+        chats.forEach(chat => {
+            const chatItem = document.createElement('div');
+            chatItem.className = 'chat-item';
+            if (this.currentChatId === chat.chat_id) {
+                chatItem.classList.add('active');
+            }
+            
+            chatItem.innerHTML = `
+                <svg class="chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="chat-title">${chat.title || 'New Chat'}</span>
+                <span class="chat-date">${this.formatDate(chat.created_at)}</span>
+            `;
+            
+            chatItem.addEventListener('click', () => this.loadChat(chat.chat_id));
+            
+            this.chatList.appendChild(chatItem);
+        });
+    }
+    
     async loadChat(chatId) {
         this.currentChatId = chatId;
         
-        document.querySelectorAll('.chat-item').forEach(item => {
-            item.classList.remove('active');
-        });
+        // Update active chat in list
+        if (this.chatList) {
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
+        }
         
+        // Load messages
+        this.loadMessages(chatId);
+        
+        // Update header
+        if (this.chatHeader) {
+            this.chatHeader.style.display = 'flex';
+        }
+        if (this.deleteChatBtn) {
+            this.deleteChatBtn.style.display = 'flex';
+        }
+        
+        // Update chat title
         try {
             const chat = await this.getChatInfo(chatId);
-            if (chat) {
-                this.currentModel = chat.model || 'llama3';
-                this.modelName.textContent = this.currentModel;
-                this.modelSelect.value = this.currentModel;
+            if (chat && this.chatTitle) {
+                this.chatTitle.textContent = chat.title || 'New Chat';
             }
         } catch (error) {
             console.error('Load chat info error:', error);
         }
-        
-        this.loadMessages(chatId);
-        this.chatHeader.style.display = 'flex';
-        this.deleteChatBtn.style.display = 'block';
     }
     
     async getChatInfo(chatId) {
         try {
             const response = await fetch('/api/chats');
             const data = await response.json();
-            return data.chats.find(c => c.chat_id === chatId);
+            if (data.success) {
+                return data.chats.find(c => c.chat_id === chatId);
+            }
+            return null;
         } catch (error) {
             return null;
         }
     }
     
     async loadMessages(chatId) {
+        if (!this.messagesContainer) return;
+        
         this.clearMessages();
         
         try {
             const response = await fetch(`/api/chats/${chatId}/messages`);
             const data = await response.json();
             
-            if (data.messages.length === 0) {
-                this.welcomeMessage.style.display = 'block';
-            } else {
-                this.welcomeMessage.style.display = 'none';
-                data.messages.forEach(msg => this.renderMessage(msg));
+            if (data.success) {
+                if (data.messages.length === 0) {
+                    if (this.welcomeMessage) {
+                        this.welcomeMessage.style.display = 'flex';
+                    }
+                } else {
+                    if (this.welcomeMessage) {
+                        this.welcomeMessage.style.display = 'none';
+                    }
+                    data.messages.forEach(msg => this.renderMessage(msg));
+                }
             }
-            
             this.scrollToBottom();
         } catch (error) {
             console.error('Load messages error:', error);
@@ -503,12 +361,14 @@ class OllamaChatApp {
     }
     
     renderMessage(message) {
+        if (!this.messagesContainer) return;
+        
         const messageElement = document.createElement('div');
         messageElement.className = `message ${message.role}`;
         
         const avatar = document.createElement('div');
         avatar.className = 'message-avatar';
-        avatar.textContent = message.role === 'user' ? 'U' : 'AI';
+        avatar.textContent = message.role === 'user' ? this.userInitial.textContent : 'AI';
         
         const content = document.createElement('div');
         content.className = 'message-content';
@@ -532,12 +392,12 @@ class OllamaChatApp {
     }
     
     clearMessages() {
-        this.messagesContainer.innerHTML = '';
-        this.welcomeMessage.style.display = 'block';
-    }
-    
-    clearChatList() {
-        this.chatList.innerHTML = '<div class="no-chats">No chats yet. Start a new conversation!</div>';
+        if (this.messagesContainer) {
+            this.messagesContainer.innerHTML = '';
+        }
+        if (this.welcomeMessage) {
+            this.welcomeMessage.style.display = 'flex';
+        }
     }
     
     async sendMessage() {
@@ -549,7 +409,11 @@ class OllamaChatApp {
         this.messageInput.disabled = true;
         this.sendBtn.disabled = true;
         
-        this.welcomeMessage.style.display = 'none';
+        if (this.welcomeMessage) {
+            this.welcomeMessage.style.display = 'none';
+        }
+        
+        // Show user message immediately
         this.renderMessage({
             role: 'user',
             content: content,
@@ -559,6 +423,7 @@ class OllamaChatApp {
         this.messageInput.value = '';
         this.autoResizeTextarea();
         
+        // Show typing indicator
         const typingIndicator = document.createElement('div');
         typingIndicator.className = 'message assistant typing-indicator';
         typingIndicator.innerHTML = `
@@ -586,20 +451,29 @@ class OllamaChatApp {
             
             const data = await response.json();
             
-            if (response.ok) {
+            if (data.success) {
+                // Remove typing indicator
                 this.messagesContainer.removeChild(typingIndicator);
+                
+                // Render all messages (including the new ones)
                 data.messages.forEach(msg => this.renderMessage(msg));
+                
                 this.loadChats();
             } else {
+                // Remove typing indicator
                 this.messagesContainer.removeChild(typingIndicator);
+                
+                // Show error message
                 this.renderMessage({
                     role: 'assistant',
                     content: `Error: ${data.error || 'Failed to get response'}`,
                     created_at: new Date().toISOString()
                 });
+                
                 this.showError(data.error || 'Failed to send message');
             }
         } catch (error) {
+            // Remove typing indicator
             if (typingIndicator.parentNode) {
                 this.messagesContainer.removeChild(typingIndicator);
             }
@@ -609,6 +483,7 @@ class OllamaChatApp {
                 content: `Error: ${error.message}`,
                 created_at: new Date().toISOString()
             });
+            
             this.showError('Failed to send message');
         } finally {
             this.isSending = false;
@@ -622,7 +497,7 @@ class OllamaChatApp {
         if (!this.currentChatId) return;
         
         this.showConfirmModal(
-            'Delete Chat',
+            'Delete chat',
             'Are you sure you want to delete this chat? This action cannot be undone.',
             () => this.deleteChat()
         );
@@ -638,15 +513,20 @@ class OllamaChatApp {
                 method: 'DELETE'
             });
             
-            if (response.ok) {
+            const data = await response.json();
+            
+            if (data.success) {
                 this.currentChatId = null;
                 this.clearMessages();
                 this.loadChats();
-                this.chatHeader.style.display = 'none';
-                this.deleteChatBtn.style.display = 'none';
-                this.showSuccess('Chat deleted successfully!');
+                if (this.chatHeader) {
+                    this.chatHeader.style.display = 'none';
+                }
+                if (this.deleteChatBtn) {
+                    this.deleteChatBtn.style.display = 'none';
+                }
             } else {
-                this.showError('Failed to delete chat');
+                this.showError(data.error || 'Failed to delete chat');
             }
         } catch (error) {
             this.showError('Failed to delete chat');
@@ -656,19 +536,87 @@ class OllamaChatApp {
         }
     }
     
+    showConfirmModal(title, message, action) {
+        if (!this.confirmModal) return;
+        
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        this.confirmAction = action;
+        this.confirmModal.classList.add('active');
+    }
+    
+    closeConfirmModal() {
+        if (this.confirmModal) {
+            this.confirmModal.classList.remove('active');
+        }
+        this.confirmAction = null;
+    }
+    
+    closeAllModals() {
+        this.closeConfirmModal();
+    }
+    
     executeConfirmAction() {
-        if (this.confirmAction.onclick) {
-            this.confirmAction.onclick();
+        if (this.confirmAction) {
+            this.confirmAction();
         }
     }
     
+    async logout() {
+        this.showLoading();
+        
+        try {
+            const response = await fetch('/api/logout', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                this.user = null;
+                this.currentChatId = null;
+                this.updateUserInfo();
+                this.updateUI();
+                this.clearMessages();
+                window.location.href = '/login';
+            }
+        } catch (error) {
+            this.showError('Logout failed');
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    // Example prompts
+    useExample(prompt) {
+        if (!this.user) {
+            window.location.href = '/login';
+            return;
+        }
+        
+        if (!this.currentChatId) {
+            this.createNewChat().then(() => {
+                setTimeout(() => {
+                    this.messageInput.value = prompt;
+                    this.sendMessage();
+                }, 500);
+            });
+        } else {
+            this.messageInput.value = prompt;
+            this.sendMessage();
+        }
+    }
+    
+    // Utility Functions
     autoResizeTextarea() {
+        if (!this.messageInput) return;
+        
         this.messageInput.style.height = 'auto';
         this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
     }
     
     scrollToBottom() {
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        if (this.messagesContainer) {
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        }
     }
     
     formatDate(dateString) {
@@ -692,11 +640,15 @@ class OllamaChatApp {
     }
     
     showLoading() {
-        this.loadingOverlay.classList.add('active');
+        if (this.loadingOverlay) {
+            this.loadingOverlay.classList.add('active');
+        }
     }
     
     hideLoading() {
-        this.loadingOverlay.classList.remove('active');
+        if (this.loadingOverlay) {
+            this.loadingOverlay.classList.remove('active');
+        }
     }
     
     showError(message) {
@@ -704,9 +656,9 @@ class OllamaChatApp {
         errorElement.className = 'error-message';
         errorElement.textContent = message;
         
-        if (this.messagesContainer.firstChild) {
+        if (this.messagesContainer && this.messagesContainer.firstChild) {
             this.messagesContainer.insertBefore(errorElement, this.messagesContainer.firstChild);
-        } else {
+        } else if (this.messagesContainer) {
             this.messagesContainer.appendChild(errorElement);
         }
         
@@ -716,12 +668,9 @@ class OllamaChatApp {
             errorElement.remove();
         }, 5000);
     }
-    
-    showSuccess(message) {
-        console.log('Success:', message);
-    }
 }
 
+// Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new OllamaChatApp();
+    window.app = new ClaudeApp();
 });

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Claude</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="admin-body">
+    <div class="admin-container">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="admin-header">
+                <svg class="claude-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
+                    <path d="M12 6C8.69 6 6 8.69 6 12H8C8 9.79 9.79 8 12 8V6Z" fill="currentColor"/>
+                </svg>
+                <h2>Admin Panel</h2>
+            </div>
+            
+            <nav class="admin-nav">
+                <a href="#" class="admin-nav-item active" data-section="dashboard">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="admin-nav-item" data-section="users">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>Users</span>
+                </a>
+                <a href="/" class="admin-nav-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    <span>Back to Chat</span>
+                </a>
+                <a href="/api/logout" class="admin-nav-item logout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    <span>Log out</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="admin-main">
+            <div class="admin-content" id="adminContent">
+                <!-- Dashboard Section -->
+                <section class="admin-section active" id="dashboard">
+                    <div class="section-header">
+                        <h1>Dashboard</h1>
+                        <p class="section-description">Overview of your Claude instance</p>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="totalUsers">0</span>
+                                <span class="stat-label">Total Users</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="totalChats">0</span>
+                                <span class="stat-label">Total Chats</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="totalAdmins">0</span>
+                                <span class="stat-label">Admin Users</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="panel">
+                        <h2>Quick Actions</h2>
+                        <div class="quick-actions">
+                            <button class="btn btn-primary" onclick="showSection('users')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                </svg>
+                                Manage Users
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Users Section -->
+                <section class="admin-section" id="users">
+                    <div class="section-header">
+                        <h1>User Management</h1>
+                        <p class="section-description">Manage all users and their permissions</p>
+                    </div>
+                    
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Users</h2>
+                            <div class="panel-actions">
+                                <input type="text" id="userSearch" placeholder="Search users...">
+                                <button class="btn btn-secondary" onclick="loadUsers()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="23 4 23 10 17 10"/>
+                                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Admin</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr class="loading-row">
+                                    <td colspan="6">Loading users...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Make Admin Modal -->
+    <div class="modal" id="makeAdminModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Promote to Admin</h2>
+                <button class="close-modal" onclick="closeModal('makeAdminModal')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to promote <strong id="promoteUserName"></strong> to admin?</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('makeAdminModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmMakeAdmin()">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Change Password Modal -->
+    <div class="modal" id="changePasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Change Password</h2>
+                <button class="close-modal" onclick="closeModal('changePasswordModal')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Change password for: <strong id="changePasswordUserName"></strong></p>
+                <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <input type="password" id="newPassword" placeholder="Enter new password" required>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('changePasswordModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmChangePassword()">Change Password</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete User Modal -->
+    <div class="modal" id="deleteUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Delete User</h2>
+                <button class="close-modal" onclick="closeModal('deleteUserModal')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteUserName"></strong>? This action cannot be undone.</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal('deleteUserModal')">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDeleteUser()">Delete User</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentUserId = null;
+        let currentAction = null;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboardStats();
+            
+            document.querySelectorAll('.admin-nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const section = item.dataset.section;
+                    showSection(section);
+                });
+            });
+            
+            document.getElementById('userSearch').addEventListener('input', (e) => {
+                filterUsers(e.target.value);
+            });
+            
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.remove('active');
+                    }
+                });
+            });
+        });
+        
+        function showSection(section) {
+            document.querySelectorAll('.admin-nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelectorAll('.admin-section').forEach(s => {
+                s.classList.remove('active');
+            });
+            
+            document.querySelector(`[data-section="${section}"]`).classList.add('active');
+            document.getElementById(section).classList.add('active');
+            
+            if (section === 'users') {
+                loadUsers();
+            } else if (section === 'dashboard') {
+                loadDashboardStats();
+            }
+        }
+        
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const users = data.users || [];
+                    const admins = users.filter(u => u.is_admin === 1);
+                    
+                    document.getElementById('totalUsers').textContent = users.length;
+                    document.getElementById('totalAdmins').textContent = admins.length;
+                    
+                    const chatsResponse = await fetch('/api/chats');
+                    const chatsData = await chatsResponse.json();
+                    document.getElementById('totalChats').textContent = chatsData.chats?.length || 0;
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+        
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const users = data.users || [];
+                    const tbody = document.getElementById('usersTableBody');
+                    
+                    tbody.innerHTML = '';
+                    
+                    users.forEach(user => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${user.id}</td>
+                            <td>${user.username}</td>
+                            <td>${user.email}</td>
+                            <td><span class="badge ${user.is_admin ? 'badge-admin' : 'badge-user'}">${user.is_admin ? 'Admin' : 'User'}</span></td>
+                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    ${!user.is_admin ? `<button class="action-btn" onclick="promptMakeAdmin(${user.id}, '${user.username}')" title="Make Admin">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M12 6v6m0 0v6m11-7h-6m-6 0H1"/>
+                                            <circle cx="12" cy="12" r="10"/>
+                                        </svg>
+                                    </button>` : ''}
+                                    <button class="action-btn" onclick="promptChangePassword(${user.id}, '${user.username}')" title="Change Password">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 12l-3-3m0 0l3-3m-3 3h8c0 1.657 2.015 3 4.5 3s4.5-1.343 4.5-3"/>
+                                            <path d="M11 20.944A9 8.999 0 0 1 7 14.015C7 11.007 9.007 9 12 9c3.314 0 6 2.686 6 6.015"/>
+                                        </svg>
+                                    </button>
+                                    <button class="action-btn action-btn-danger" onclick="promptDeleteUser(${user.id}, '${user.username}')" title="Delete User">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="3 6 5 6 21 6"/>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load users:', error);
+                document.getElementById('usersTableBody').innerHTML = '<tr><td colspan="6">Failed to load users</td></tr>';
+            }
+        }
+        
+        function filterUsers(searchTerm) {
+            const rows = document.querySelectorAll('#usersTableBody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm.toLowerCase()) ? '' : 'none';
+            });
+        }
+        
+        function promptMakeAdmin(userId, username) {
+            currentUserId = userId;
+            currentAction = 'makeAdmin';
+            document.getElementById('promoteUserName').textContent = username;
+            document.getElementById('makeAdminModal').classList.add('active');
+        }
+        
+        function promptChangePassword(userId, username) {
+            currentUserId = userId;
+            currentAction = 'changePassword';
+            document.getElementById('changePasswordUserName').textContent = username;
+            document.getElementById('newPassword').value = '';
+            document.getElementById('changePasswordModal').classList.add('active');
+        }
+        
+        function promptDeleteUser(userId, username) {
+            currentUserId = userId;
+            currentAction = 'deleteUser';
+            document.getElementById('deleteUserName').textContent = username;
+            document.getElementById('deleteUserModal').classList.add('active');
+        }
+        
+        async function confirmMakeAdmin() {
+            try {
+                const response = await fetch('/api/admin/make-admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUserId })
+                });
+                
+                if (response.ok) {
+                    closeModal('makeAdminModal');
+                    loadUsers();
+                    loadDashboardStats();
+                }
+            } catch (error) {
+                console.error('Failed to make admin:', error);
+            }
+        }
+        
+        async function confirmChangePassword() {
+            const newPassword = document.getElementById('newPassword').value;
+            
+            if (!newPassword || newPassword.length < 8) {
+                alert('Password must be at least 8 characters');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUserId, newPassword })
+                });
+                
+                if (response.ok) {
+                    closeModal('changePasswordModal');
+                    alert('Password changed successfully');
+                }
+            } catch (error) {
+                console.error('Failed to change password:', error);
+            }
+        }
+        
+        async function confirmDeleteUser() {
+            try {
+                const response = await fetch(`/api/admin/users/${currentUserId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    closeModal('deleteUserModal');
+                    loadUsers();
+                    loadDashboardStats();
+                }
+            } catch (error) {
+                console.error('Failed to delete user:', error);
+            }
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+    </script>
+</body>
+</html>
