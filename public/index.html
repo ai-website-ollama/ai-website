@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude - Ollama</title>
+    <title>Zig - Code Assistant</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -20,6 +20,9 @@
                 </button>
             </div>
             
+            <!-- Resize handle -->
+            <div id="sidebarResizer" class="sidebar-resizer" title="Drag to resize sidebar" aria-hidden="true"></div>
+
             <nav class="chat-list" id="chatList">
                 <div class="no-chats">
                     <svg class="no-chats-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -49,6 +52,12 @@
                             <line x1="15" y1="15" x2="15.01" y2="15"/>
                         </svg>
                     </button>
+                    <button class="user-action-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06A2 2 0 0 1 4.3 17.88l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 0 1 6.12 4.3l.06.06a1.65 1.65 0 0 0 1.82.33H8.1a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c.12.64.58 1.17 1.22 1.5h.18a1.65 1.65 0 0 0 1.82-.33l.06-.06A2 2 0 0 1 19.7 6.12l-.06.06a1.65 1.65 0 0 0-.33 1.82v.18c.33.64.86 1.1 1.5 1.22H21a2 2 0 0 1 0 4h-.09c-.64.12-1.17.58-1.5 1.22v.18z"></path>
+                        </svg>
+                    </button>
                     <button class="user-action-btn" id="logoutBtn" title="Log out">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -73,12 +82,15 @@
                                 <line x1="3" y1="18" x2="21" y2="18"/>
                             </svg>
                         </button>
-                        <span class="chat-title" id="chatTitle">New chat</span>
+                       <span class="chat-title" id="chatTitle">New chat</span>
                     </div>
                     <div class="chat-actions">
-                        <select id="modelSelect" class="model-select">
-                            <option value="llama3.2">llama3.2</option>
-                        </select>
+                        <button class="chat-action-btn" id="webSearchBtn" title="Web search" aria-label="Web search">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="7"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </button>
                         <button class="chat-action-btn delete-chat" id="deleteChatBtn" title="Delete chat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"/>
@@ -137,7 +149,7 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="input-disclaimer">Claude may produce inaccurate information. Consider verifying important facts.</p>
+                    <p class="input-disclaimer">Zig may produce inaccurate information. Consider verifying important facts.</p>
                 </div>
             </div>
         </main>
@@ -166,6 +178,75 @@
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings & Integrations</h2>
+                <button class="close-modal" id="closeSettingsModalBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="input-disclaimer">Enable optional integrations and provide non-sensitive endpoints. Do NOT store secrets here unless you understand the risks.</p>
+                <div class="form-group">
+                    <label><input type="checkbox" id="intSpotify"> Enable Spotify integration</label>
+                </div>
+                <div class="form-group">
+                    <label>Spotify API endpoint (optional)</label>
+                    <input type="text" id="spotifyEndpoint" placeholder="https://api.spotify.com/...">
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="intHomeAssistant"> Enable Home Assistant integration</label>
+                </div>
+                <div class="form-group">
+                    <label>Home Assistant URL</label>
+                    <input type="text" id="homeAssistantEndpoint" placeholder="http://homeassistant.local:8123">
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="intCanva"> Enable Canva integration</label>
+                </div>
+                <div class="form-group">
+                    <label>Canva API endpoint (optional)</label>
+                    <input type="text" id="canvaEndpoint" placeholder="https://api.canva.com/...">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Web Search Modal -->
+    <div class="modal" id="searchModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Web search</h2>
+                <button class="close-modal" id="closeSearchModalBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Query</label>
+                    <input type="text" id="searchInput" placeholder="Search the web...">
+                </div>
+                <div id="searchResults" style="max-height:300px; overflow:auto; margin-top:12px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelSearchBtn">Close</button>
+                <button class="btn btn-primary" id="performSearchBtn">Search</button>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

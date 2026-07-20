@@ -12,15 +12,38 @@ class ClaudeApp {
         this.newChatBtn = document.getElementById('newChatBtn');
         this.chatHeader = document.getElementById('chatHeader');
         this.chatTitle = document.getElementById('chatTitle');
-        this.modelSelect = document.getElementById('modelSelect');
+        // modelSelect removed - Zig uses a single recommended model
         this.deleteChatBtn = document.getElementById('deleteChatBtn');
         this.welcomeMessage = document.getElementById('welcomeMessage');
         this.userAvatar = document.getElementById('userAvatar');
         this.userInitial = document.getElementById('userInitial');
         this.userName = document.getElementById('userName');
         this.adminBtn = document.getElementById('adminBtn');
+        this.settingsBtn = document.getElementById('settingsBtn');
         this.logoutBtn = document.getElementById('logoutBtn');
         this.mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        this.sidebarResizer = document.getElementById('sidebarResizer');
+
+        // Settings modal elements
+        this.settingsModal = document.getElementById('settingsModal');
+        this.closeSettingsModalBtn = document.getElementById('closeSettingsModalBtn');
+        this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        this.cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+        this.intSpotify = document.getElementById('intSpotify');
+        this.spotifyEndpoint = document.getElementById('spotifyEndpoint');
+        this.intHomeAssistant = document.getElementById('intHomeAssistant');
+        this.homeAssistantEndpoint = document.getElementById('homeAssistantEndpoint');
+        this.intCanva = document.getElementById('intCanva');
+        this.canvaEndpoint = document.getElementById('canvaEndpoint');
+
+        // Search modal elements
+        this.webSearchBtn = document.getElementById('webSearchBtn');
+        this.searchModal = document.getElementById('searchModal');
+        this.closeSearchModalBtn = document.getElementById('closeSearchModalBtn');
+        this.cancelSearchBtn = document.getElementById('cancelSearchBtn');
+        this.performSearchBtn = document.getElementById('performSearchBtn');
+        this.searchInput = document.getElementById('searchInput');
+        this.searchResults = document.getElementById('searchResults');
         
         // Modals
         this.confirmModal = document.getElementById('confirmModal');
@@ -33,6 +56,7 @@ class ClaudeApp {
         this.user = null;
         this.isSending = false;
         this.confirmAction = null;
+        this.currentSystemPrompt = null;
         
         // Initialize
         this.init();
@@ -40,6 +64,7 @@ class ClaudeApp {
     
     init() {
         this.setupEventListeners();
+        this.setupSidebarResizer();
         this.loadModels();
         this.checkSession();
         this.updateUI();
@@ -96,7 +121,7 @@ class ClaudeApp {
             });
         }
         
-        // Modal close on outside click
+        // Modal close on outside click (confirm modal)
         if (this.confirmModal) {
             this.confirmModal.addEventListener('click', (e) => {
                 if (e.target === this.confirmModal) {
@@ -104,7 +129,52 @@ class ClaudeApp {
                 }
             });
         }
-        
+
+        // System prompt modal listeners and buttons
+        if (this.editSystemPromptBtn) {
+            this.editSystemPromptBtn.addEventListener('click', () => this.showSystemPromptModal());
+        }
+        if (this.saveSystemPromptBtn) {
+            this.saveSystemPromptBtn.addEventListener('click', () => this.saveSystemPrompt());
+        }
+        // Settings modal listeners
+        if (this.settingsBtn) {
+            this.settingsBtn.addEventListener('click', () => this.showSettingsModal());
+        }
+        if (this.saveSettingsBtn) {
+            this.saveSettingsBtn.addEventListener('click', () => this.saveSettings());
+        }
+        if (this.cancelSettingsBtn) {
+            this.cancelSettingsBtn.addEventListener('click', () => this.closeSettingsModal());
+        }
+        if (this.closeSettingsModalBtn) {
+            this.closeSettingsModalBtn.addEventListener('click', () => this.closeSettingsModal());
+        }
+        if (this.settingsModal) {
+            this.settingsModal.addEventListener('click', (e) => {
+                if (e.target === this.settingsModal) this.closeSettingsModal();
+            });
+        }
+
+        // Web search modal listeners
+        if (this.webSearchBtn) {
+            this.webSearchBtn.addEventListener('click', () => this.showSearchModal());
+        }
+        if (this.performSearchBtn) {
+            this.performSearchBtn.addEventListener('click', () => this.performSearch());
+        }
+        if (this.cancelSearchBtn) {
+            this.cancelSearchBtn.addEventListener('click', () => this.closeSearchModal());
+        }
+        if (this.closeSearchModalBtn) {
+            this.closeSearchModalBtn.addEventListener('click', () => this.closeSearchModal());
+        }
+        if (this.searchModal) {
+            this.searchModal.addEventListener('click', (e) => {
+                if (e.target === this.searchModal) this.closeSearchModal();
+            });
+        }
+
         // Close modals with Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
@@ -200,7 +270,63 @@ class ClaudeApp {
             this.sidebar.classList.toggle('active');
         }
     }
-    
+
+    setupSidebarResizer() {
+        if (!this.sidebar) return;
+        // load saved width
+        try {
+            const saved = localStorage.getItem('sidebarWidth');
+            if (saved) {
+                this.sidebar.style.width = saved;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        if (!this.sidebarResizer) return;
+
+        let isResizing = false;
+        const minWidth = 180;
+        const maxWidth = 720;
+
+        const startResize = (e) => {
+            isResizing = true;
+            this.sidebarResizer.classList.add('active');
+            document.body.style.cursor = 'ew-resize';
+            e.preventDefault();
+        };
+
+        const doResize = (e) => {
+            if (!isResizing) return;
+            const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+            const rect = this.sidebar.getBoundingClientRect();
+            let newWidth = clientX - rect.left;
+            newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+            this.sidebar.style.width = newWidth + 'px';
+            try { localStorage.setItem('sidebarWidth', this.sidebar.style.width); } catch (err) {}
+        };
+
+        const stopResize = () => {
+            if (!isResizing) return;
+            isResizing = false;
+            this.sidebarResizer.classList.remove('active');
+            document.body.style.cursor = '';
+        };
+
+        this.sidebarResizer.addEventListener('mousedown', startResize);
+        this.sidebarResizer.addEventListener('touchstart', startResize, { passive: false });
+        document.addEventListener('mousemove', doResize);
+        document.addEventListener('touchmove', doResize, { passive: false });
+        document.addEventListener('mouseup', stopResize);
+        document.addEventListener('touchend', stopResize);
+
+        // double click to reset to CSS variable/default
+        this.sidebarResizer.addEventListener('dblclick', () => {
+            this.sidebar.style.width = '';
+            try { localStorage.removeItem('sidebarWidth'); } catch (e) {}
+        });
+    }
+
     async createNewChat() {
         if (!this.user) {
             window.location.href = '/login';
@@ -313,6 +439,7 @@ class ClaudeApp {
             const chat = await this.getChatInfo(chatId);
             if (chat && this.chatTitle) {
                 this.chatTitle.textContent = chat.title || 'New Chat';
+                this.currentSystemPrompt = chat.system_prompt || null;
             }
         } catch (error) {
             console.error('Load chat info error:', error);
@@ -554,6 +681,8 @@ class ClaudeApp {
     
     closeAllModals() {
         this.closeConfirmModal();
+        this.closeSettingsModal();
+        this.closeSearchModal();
     }
     
     executeConfirmAction() {
@@ -561,7 +690,92 @@ class ClaudeApp {
             this.confirmAction();
         }
     }
-    
+
+    // Settings modal helpers
+    showSettingsModal() {
+        // load current user settings and populate fields
+        this.loadUserSettings().then(settings => {
+            const ints = (settings && settings.integrations) || {};
+            if (this.intSpotify) this.intSpotify.checked = !!ints.spotify;
+            if (this.spotifyEndpoint) this.spotifyEndpoint.value = ints.spotifyEndpoint || '';
+            if (this.intHomeAssistant) this.intHomeAssistant.checked = !!ints.homeassistant;
+            if (this.homeAssistantEndpoint) this.homeAssistantEndpoint.value = ints.homeAssistantEndpoint || '';
+            if (this.intCanva) this.intCanva.checked = !!ints.canva;
+            if (this.canvaEndpoint) this.canvaEndpoint.value = ints.canvaEndpoint || '';
+            if (this.settingsModal) this.settingsModal.classList.add('active');
+        }).catch(() => {
+            if (this.settingsModal) this.settingsModal.classList.add('active');
+        });
+    }
+
+    closeSettingsModal() {
+        if (this.settingsModal) this.settingsModal.classList.remove('active');
+    }
+
+    async saveSettings() {
+        const integrations = {
+            spotify: !!(this.intSpotify && this.intSpotify.checked),
+            spotifyEndpoint: this.spotifyEndpoint ? this.spotifyEndpoint.value.trim() : '',
+            homeassistant: !!(this.intHomeAssistant && this.intHomeAssistant.checked),
+            homeAssistantEndpoint: this.homeAssistantEndpoint ? this.homeAssistantEndpoint.value.trim() : '',
+            canva: !!(this.intCanva && this.intCanva.checked),
+            canvaEndpoint: this.canvaEndpoint ? this.canvaEndpoint.value.trim() : ''
+        };
+        const payload = { integrations };
+        this.showLoading();
+        try {
+            const res = await fetch('/api/user/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings: payload })
+            });
+            const data = await res.json();
+            if (data.success) {
+                this.closeSettingsModal();
+                this.showError('Settings saved');
+            } else {
+                this.showError(data.error || 'Failed to save settings');
+            }
+        } catch (err) {
+            this.showError('Failed to save settings');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    // Web search modal helpers
+    showSearchModal() {
+        if (this.searchModal) this.searchModal.classList.add('active');
+    }
+
+    closeSearchModal() {
+        if (this.searchModal) this.searchModal.classList.remove('active');
+        if (this.searchResults) this.searchResults.innerHTML = '';
+        if (this.searchInput) this.searchInput.value = '';
+    }
+
+    async performSearch() {
+        const q = this.searchInput ? this.searchInput.value.trim() : '';
+        if (!q) return this.showError('Enter a search query');
+        if (this.searchResults) this.searchResults.innerHTML = '<div class="example-btn">Searching...</div>';
+        try {
+            const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+            const data = await res.json();
+            if (data.success) {
+                const items = [];
+                if (data.abstract) items.push({ title: data.abstract, url: data.abstractUrl });
+                (data.related || []).forEach(r => {
+                    if (Array.isArray(r)) r.forEach(i => items.push(i)); else items.push(r);
+                });
+                this.searchResults.innerHTML = items.map(it => `<div style="margin-bottom:12px"><div style="font-weight:600">${this.escapeHtml(it.text || it.title || '')}</div>${it.url ? `<div style="font-size:12px;color:var(--text-muted)">${this.escapeHtml(it.url)}</div>` : ''}</div>`).join('');
+            } else {
+                this.searchResults.innerHTML = '<div class="error-message">Search failed</div>';
+            }
+        } catch (err) {
+            this.searchResults.innerHTML = '<div class="error-message">Search error</div>';
+        }
+    }
+
     async logout() {
         this.showLoading();
         
@@ -668,7 +882,30 @@ class ClaudeApp {
             errorElement.remove();
         }, 5000);
     }
+
+    // Load user settings
+    async loadUserSettings() {
+        try {
+            const res = await fetch('/api/user/settings');
+            const data = await res.json();
+            if (data.success) return data.settings || {};
+            return {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 }
+
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

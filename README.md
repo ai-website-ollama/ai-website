@@ -1,215 +1,134 @@
-# Ollama AI Website
+# Zig — Code Assistant Website
 
-A complete AI chat website that connects to your local Ollama instance. Built with Node.js, Express, SQLite3, and vanilla JavaScript.
+Zig is a student-focused coding assistant web app that connects to a local Ollama model. Built with Node.js, Express, SQLite3, and vanilla JavaScript, Zig helps users learn programming with step-by-step explanations, runnable examples, and safe guidance for schoolwork.
 
-## Features
+## Key Features
 
-- **User Authentication**: Register, login, and logout with secure password hashing
-- **Chat Management**: Create, view, and delete chat conversations
-- **Model Selection**: Choose from available Ollama models
-- **Persistent Storage**: All chats and messages stored in SQLite3 database
-- **Responsive Design**: Works on desktop and mobile devices
-- **Modal UI**: Clean modal dialogs for authentication and chat creation
-- **Memory Efficient**: Designed to run in an LXC container with 2GB RAM
+- User authentication (register/login/logout)
+- Chat management (create, view, delete chats)
+- Zig system prompt tuned for teaching coding and preventing academic cheating
+- Safety heuristics to reduce jailbreaks and unsafe requests
+- Web search (DuckDuckGo instant answers proxy)
+- User settings & integrations (store endpoints/toggles for Spotify, Home Assistant, Canva)
+- Responsive UI with resizable sidebar and polished chat UX
+- Messages and chats persisted to SQLite3
 
 ## Prerequisites
 
 - Node.js (v18+ recommended)
 - npm or yarn
-- Ollama running at `http://192.168.10.181:11434` (configurable)
-- LXC (for containerized deployment)
+- Ollama running and reachable (configurable via OLLAMA_URL)
 
 ## Quick Start
 
-### Option 1: Run Locally (Development)
+1. Install dependencies
 
 ```bash
-cd ollama-ai-website
 npm install
+```
+
+2. Copy environment template and edit
+
+```bash
 cp .env.example .env
-# Edit .env to set your Ollama URL
-nano .env
+# edit .env: set OLLAMA_URL, PORT, SESSION_SECRET
+```
+
+3. Start the app
+
+```bash
 npm start
 ```
 
-Or use the start script:
-```bash
-./scripts/start.sh
-```
+Open: http://localhost:3000 (or the PORT you set)
 
-Access the website at: `http://localhost:3000`
+## Environment Variables
 
-### Option 2: Deploy in LXC Container (Recommended)
-
-```bash
-chmod +x scripts/*.sh
-sudo ./scripts/setup.sh
-```
-
-The script will:
-1. Install LXC if not already installed
-2. Create a container with 2GB RAM limit
-3. Install Node.js and dependencies
-4. Copy application files
-5. Set up a systemd service
-6. Start the application
-
-Access the website at: `http://<container-ip>:3000`
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root:
+Create a `.env` file and set:
 
 ```env
-OLLAMA_URL=http://192.168.10.181:11434
+OLLAMA_URL=http://localhost:11434    # Ollama instance URL
 PORT=3000
-SESSION_SECRET=your-secret-key-here
+SESSION_SECRET=your-secret
 NODE_ENV=production
 ```
 
-### Customizing Ollama URL
-
-If your Ollama instance is running on a different host or port, update the `OLLAMA_URL` in the `.env` file.
+Security note: do not commit secrets to source control. Integration credentials are user-provided in UI settings and are not encrypted by this app.
 
 ## Project Structure
 
 ```
-ollama-ai-website/
-├── server.js              # Express server with API routes
-├── package.json           # Node.js dependencies
-├── .env.example           # Environment configuration template
-├── .gitignore             # Git ignore rules
-├── public/
-│   ├── index.html         # Main HTML file
-│   ├── styles.css         # CSS styles
-│   └── app.js             # Frontend JavaScript
-├── db/
-│   └── app.db             # SQLite3 database (created on first run)
-├── scripts/
-│   ├── setup.sh           # LXC container setup script
-│   ├── start.sh            # Start script for development
-│   └── monitor.sh          # Monitoring and management script
+Zig/
+├── server.js           # Express server and API
+├── package.json
+├── public/             # Frontend assets (index.html, app.js, styles.css)
+├── db/app.db           # SQLite database (created on first run)
+├── scripts/            # setup/start/monitor helpers
 └── README.md
 ```
 
+## Notable Behavior & Design
+
+- Zig uses a global SYSTEM_PROMPT (tunable via environment) tailored to be a coding tutor and to discourage cheating. The server applies a simple heuristic filter to block obvious jailbreaks and disallowed system prompt edits.
+- Per-chat system_prompt column exists for future use but is not editable from the UI to avoid misuse.
+- Model selection is intentionally not exposed in the UI; the server uses a configured default model.
+- Web search is available at `/api/search?q=...` and returns lightweight instant-answer data.
+- User settings (integrations/preferences) are stored as JSON in `users.settings`.
+
 ## API Endpoints
 
-### Authentication
-- `POST /api/register` - Register a new user
-- `POST /api/login` - Login
-- `POST /api/logout` - Logout
-- `GET /api/session` - Check current session
+Authentication
+- POST /api/register
+- POST /api/login
+- POST /api/logout
+- GET /api/session
 
-### Chats
-- `GET /api/chats` - List all chats for current user
-- `POST /api/chats` - Create a new chat
-- `DELETE /api/chats/:chatId` - Delete a chat
+Chats & Messages
+- GET /api/chats
+- POST /api/chats
+- DELETE /api/chats/:chatId
+- GET /api/chats/:chatId/messages
+- POST /api/chats/:chatId/messages
 
-### Messages
-- `GET /api/chats/:chatId/messages` - Get messages for a chat
-- `POST /api/chats/:chatId/messages` - Send a message and get AI response
+Utilities
+- GET /api/models        # read-only listing from Ollama (UI doesn't expose model selection)
+- GET /api/search?q=...  # simple web search proxy (DuckDuckGo instant answer)
 
-### Models
-- `GET /api/models` - List available Ollama models
+User Settings
+- GET /api/user/settings
+- POST /api/user/settings  (stores allowed keys only: integrations, preferences)
 
-## Management Commands
+## Integrations
 
-Use the `monitor.sh` script to manage the application:
+Settings UI supports toggling and storing endpoints/toggles for third-party services (Spotify, Home Assistant, Canva). This repo does NOT implement OAuth or private-key storage — adding full connectors requires implementing secure credential storage and OAuth flows.
 
-```bash
-./scripts/monitor.sh start
-./scripts/monitor.sh stop
-./scripts/monitor.sh restart
-./scripts/monitor.sh status
-./scripts/monitor.sh logs
-./scripts/monitor.sh logs -f
-./scripts/monitor.sh shell
-./scripts/monitor.sh backup
-./scripts/monitor.sh restore /path/to/backup.sqlite
-./scripts/monitor.sh stats
-```
+## Database Migration
 
-### LXC Container Commands
-
-```bash
-./scripts/monitor.sh lxc-start
-./scripts/monitor.sh lxc-stop
-./scripts/monitor.sh lxc-restart
-./scripts/monitor.sh lxc-shell
-```
-
-## Database
-
-The application uses SQLite3 for data storage. The database file is located at `db/app.db` and contains:
-
-- **users**: User accounts with hashed passwords
-- **chats**: Chat conversations
-- **messages**: Individual messages in chats
-
-### Backup and Restore
-
-```bash
-# Manual backup
-cp db/app.db db/backup/app_db_$(date +%Y%m%d_%H%M%S).sqlite
-
-# Manual restore
-cp db/backup/app_db_*.sqlite db/app.db
-```
-
-## Security
-
-- Passwords are hashed using bcrypt
-- Session cookies are secure (in production, use HTTPS)
-- SQLite3 database is stored locally
-- No external dependencies beyond Node.js and SQLite3
-
-## Customization
-
-### Changing the Theme
-
-Edit the CSS variables in `public/styles.css`:
-
-```css
-:root {
-    --primary-color: #7b68ee;
-    --background-color: #0f172a;
-    --surface-color: #1e293b;
-    /* ... */
-}
-```
-
-### Adding More Models
-
-The application automatically fetches available models from your Ollama instance.
+On first run the server creates required tables. The app will add `system_prompt` on `chats` and `settings` on `users` if missing.
 
 ## Troubleshooting
 
-### Ollama Connection Issues
+- Ollama: verify `OLLAMA_URL` and that the Ollama API is reachable.
+- Database: ensure `db` directory is writable by the app user.
+- Sessions: in production set secure cookies + HTTPS and a strong SESSION_SECRET.
 
-1. Verify Ollama is running: `curl http://192.168.10.181:11434/api/tags`
-2. Check the URL in your `.env` file
-3. Ensure your LXC container can reach the Ollama host
+## Testing & Development
 
-### Database Issues
+- Dev: `npm run dev` (requires nodemon)
+- Start: `npm start`
 
-1. Check file permissions: `chmod 644 db/app.db`
-2. Verify the `db` directory exists
-3. Check for write permissions in the application directory
+## Security & Privacy
 
-### Port Conflicts
+- Passwords are hashed with bcrypt.
+- Do not store API secrets in the settings UI unless you understand the risks—this app stores them as plain JSON in the database.
+- The jailbreak filter is heuristic. For production use, integrate a vetted content-safety layer.
 
-1. Change the `PORT` in your `.env` file
-2. Ensure the port is not blocked by a firewall
+## Next improvements (ideas)
 
-### Memory Issues
-
-The application is designed to run with 2GB RAM. If you experience memory issues:
-
-1. Reduce the number of concurrent users
-2. Limit the model size in Ollama
-3. Increase the container memory limit in the setup script
+- OAuth connectors for Spotify / Home Assistant / Canva
+- Stronger safety policies and structured refusal templates
+- Summarization of web search results into the chat
+- Optional encrypted credential storage for integrations
 
 ## License
 
