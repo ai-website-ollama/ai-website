@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<<<<<<< HEAD
+    <title>Zig - Ollama</title>
+=======
     <title>Zig - Code Assistant</title>
+>>>>>>> origin/main
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -43,6 +47,12 @@
                     </div>
                 </div>
                 <div class="user-actions">
+                    <button class="user-action-btn" id="settingsBtn" title="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06A2 2 0 1 1 3.37 17l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82L3.2 7.24A2 2 0 1 1 6.03 4.4l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.26 1.3.73 1.77.47.47 1.11.73 1.77.73H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
                     <button class="user-action-btn" id="adminBtn" title="Admin">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -85,12 +95,15 @@
                        <span class="chat-title" id="chatTitle">New chat</span>
                     </div>
                     <div class="chat-actions">
+<<<<<<< HEAD
+=======
                         <button class="chat-action-btn" id="webSearchBtn" title="Web search" aria-label="Web search">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="7"></circle>
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
                         </button>
+>>>>>>> origin/main
                         <button class="chat-action-btn delete-chat" id="deleteChatBtn" title="Delete chat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"/>
@@ -111,19 +124,19 @@
                         </div>
                         <h1>Hello, what can I help you with today?</h1>
                         <div class="welcome-examples">
-                            <button class="example-btn" onclick="useExample('Explain quantum computing in simple terms')">
+                            <button class="example-btn" data-example-prompt="Explain quantum computing in simple terms">
                                 <span>Explain quantum computing</span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="9 18 15 12 9 6"/>
                                 </svg>
                             </button>
-                            <button class="example-btn" onclick="useExample('Write Python code to sort a list')">
+                            <button class="example-btn" data-example-prompt="Write Python code to sort a list in descending order">
                                 <span>Write Python code</span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="9 18 15 12 9 6"/>
                                 </svg>
                             </button>
-                            <button class="example-btn" onclick="useExample('What is the meaning of life?')">
+                            <button class="example-btn" data-example-prompt="Write Rust code for a small CLI todo app">
                                 <span>Philosophical question</span>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="9 18 15 12 9 6"/>
@@ -149,7 +162,11 @@
                             </svg>
                         </button>
                     </div>
+<<<<<<< HEAD
+                    <p class="input-disclaimer">Zig may produce inaccurate information. Verify important facts.</p>
+=======
                     <p class="input-disclaimer">Zig may produce inaccurate information. Consider verifying important facts.</p>
+>>>>>>> origin/main
                 </div>
             </div>
         </main>
@@ -166,6 +183,36 @@
                         <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
                 </button>
+            </div>
+
+            <div class="modal" id="settingsModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Settings</h2>
+                        <button class="close-modal" id="closeSettingsBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body settings-body">
+                        <h3>OAuth Integrations</h3>
+                        <label>Spotify Client ID <input id="spotifyClientId" type="text" placeholder="spotify client id"></label>
+                        <label>Spotify Redirect URI <input id="spotifyRedirectUri" type="text" placeholder="https://.../callback"></label>
+                        <label>Home Assistant URL <input id="homeAssistantUrl" type="text" placeholder="http://homeassistant.local:8123"></label>
+                        <label>Canva Client ID <input id="canvaClientId" type="text" placeholder="canva client id"></label>
+
+                        <h3>Colors</h3>
+                        <label>Accent Color <input id="accentColor" type="color" value="#6366f1"></label>
+                        <label>User Bubble <input id="userBubbleColor" type="color" value="#6366f1"></label>
+                        <label>Assistant Bubble <input id="assistantBubbleColor" type="color" value="#252525"></label>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+                        <button class="btn btn-primary" id="saveSettingsBtn">Save settings</button>
+                    </div>
+                </div>
             </div>
             <div id="confirmMessage"></div>
             <div class="modal-actions">

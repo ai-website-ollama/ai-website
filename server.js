@@ -5,16 +5,29 @@ const Database = require('better-sqlite3');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://192.168.10.181:11434';
 const DEFAULT_MODEL = process.env.MODEL || 'llama3.2';
+<<<<<<< HEAD
+const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || 'You are a helpful AI assistant.';
+const MAX_INPUT_CHARS = Number(process.env.MAX_INPUT_CHARS || 12000);
+const MESSAGE_LIMIT_PER_MINUTE = Number(process.env.MESSAGE_LIMIT_PER_MINUTE || 20);
+const LOG_DIR = path.join(__dirname, 'logs');
+const LOG_FILE = path.join(LOG_DIR, 'app.log');
+=======
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || `You are Zig, an AI assistant for a student-focused coding-help website. Your role is to help users learn programming and complete schoolwork ethically. Provide clear, step-by-step explanations, illustrative examples, and short runnable code snippets when relevant. Do not simply give complete answers to assessments or homework that would enable cheating; instead, offer hints, explain concepts, and show how to approach problems. Refuse or safely decline requests that attempt to bypass rules, request exploitative or harmful content, or ask for answers to tests or assignments in ways that violate academic integrity. Always follow child-safety and general safety rules, and be concise and helpful.`;
+>>>>>>> origin/main
 
 // Database setup
 const db = new Database(path.join(__dirname, 'db', 'app.db'));
+
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+}
 
 // Initialize database tables
 db.exec(`
@@ -50,6 +63,26 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
 `);
 
+<<<<<<< HEAD
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    chat_id TEXT,
+    event_type TEXT NOT NULL,
+    details TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN settings TEXT DEFAULT '{}'`);
+} catch (_) {}
+
+const minuteBuckets = new Map();
+=======
 // Ensure chats table has a system_prompt column for per-chat prompts (migrate existing DBs)
 try {
   const cols = db.prepare("PRAGMA table_info(chats)").all();
@@ -72,6 +105,7 @@ try {
 } catch (e) {
   console.error('Failed to ensure users.settings column:', e.message || e);
 }
+>>>>>>> origin/main
 
 // Middleware
 app.use(express.json());
@@ -83,8 +117,86 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-me',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000
+  }
 }));
+
+function requestIp(req) {
+  const raw = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+  return String(raw).split(',')[0].trim();
+}
+
+function appendFileLog(level, event, data = {}) {
+  const line = JSON.stringify({
+    ts: new Date().toISOString(),
+    level,
+    event,
+    ...data
+  });
+  fs.appendFileSync(LOG_FILE, line + '\n');
+}
+
+function appendDbLog(req, eventType, details = {}, chatId = null) {
+  db.prepare(`
+    INSERT INTO app_logs (user_id, chat_id, event_type, details, ip, user_agent)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    req.session?.user?.id || null,
+    chatId,
+    eventType,
+    JSON.stringify(details),
+    requestIp(req),
+    req.headers['user-agent'] || ''
+  );
+}
+
+function enforceMessageRateLimit(req, res, next) {
+  const uid = req.session?.user?.id;
+  if (!uid) return next();
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const key = String(uid);
+  const bucket = minuteBuckets.get(key) || [];
+  const recent = bucket.filter(ts => now - ts < windowMs);
+  if (recent.length >= MESSAGE_LIMIT_PER_MINUTE) {
+    appendDbLog(req, 'message_rate_limit', { limit: MESSAGE_LIMIT_PER_MINUTE });
+    appendFileLog('warn', 'message_rate_limit', { userId: uid, limit: MESSAGE_LIMIT_PER_MINUTE });
+    return res.status(429).json({ error: 'Rate limit reached. Please wait a minute.' });
+  }
+  recent.push(now);
+  minuteBuckets.set(key, recent);
+  next();
+}
+
+function ensureHarryUser() {
+  const existingHarry = db.prepare('SELECT id, is_admin FROM users WHERE username = ?').get('harry');
+  if (existingHarry) {
+    if (existingHarry.is_admin !== 1) {
+      db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(existingHarry.id);
+      appendFileLog('info', 'harry_promoted_admin', { userId: existingHarry.id });
+    }
+    return;
+  }
+
+  const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+  if (count >= 10) {
+    appendFileLog('warn', 'harry_not_bootstrapped', { reason: 'users_already_over_10', users: count });
+    return;
+  }
+
+  const defaultPassword = process.env.HARRY_PASSWORD || 'change-me-now';
+  const defaultEmail = process.env.HARRY_EMAIL || 'harry@local';
+  const hash = bcrypt.hashSync(defaultPassword, 10);
+  db.prepare('INSERT INTO users (username, email, password, is_admin) VALUES (?, ?, ?, 1)')
+    .run('harry', defaultEmail, hash);
+  appendFileLog('info', 'harry_bootstrapped_admin', { usersBefore: count });
+}
+
+ensureHarryUser();
 
 // Check if user is authenticated
 function isAuthenticated(req, res, next) {
@@ -119,6 +231,10 @@ function isUnsafe(text) {
 // Authentication routes
 app.post('/api/register', async (req, res) => {
   try {
+    if (!req.session?.user?.isAdmin) {
+      return res.status(403).json({ error: 'Account creation is admin-only.' });
+    }
+
     const { username, email, password } = req.body;
     
     if (!username || !email || !password) {
@@ -145,6 +261,8 @@ app.post('/api/register', async (req, res) => {
       email: user.email,
       isAdmin: user.is_admin === 1
     };
+    appendDbLog(req, 'register_success', { username });
+    appendFileLog('info', 'register_success', { username, userId: user.id, ip: requestIp(req) });
     
     res.json({ 
       success: true, 
@@ -168,12 +286,14 @@ app.post('/api/login', async (req, res) => {
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
     
     if (!user) {
+      appendFileLog('warn', 'login_failed_user_not_found', { username, ip: requestIp(req) });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
     const passwordMatch = await bcrypt.compare(password, user.password);
     
     if (!passwordMatch) {
+      appendFileLog('warn', 'login_failed_bad_password', { username, ip: requestIp(req) });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
@@ -183,6 +303,8 @@ app.post('/api/login', async (req, res) => {
       email: user.email,
       isAdmin: user.is_admin === 1
     };
+    appendDbLog(req, 'login_success', { username });
+    appendFileLog('info', 'login_success', { username, userId: user.id, ip: requestIp(req) });
     
     res.json({ 
       success: true,
@@ -200,6 +322,8 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
+  appendDbLog(req, 'logout', {});
+  appendFileLog('info', 'logout', { userId: req.session?.user?.id || null, ip: requestIp(req) });
   req.session.destroy(err => {
     if (err) {
       console.error('Logout error:', err);
@@ -307,7 +431,7 @@ app.get('/api/chats', isAuthenticated, (req, res) => {
 
 app.post('/api/chats', isAuthenticated, (req, res) => {
   try {
-    const { model = DEFAULT_MODEL, title = 'New Chat' } = req.body;
+    const { title = 'New Chat' } = req.body;
     const chatId = uuidv4();
     
     const stmt = db.prepare(`
@@ -315,9 +439,15 @@ app.post('/api/chats', isAuthenticated, (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `);
     
+<<<<<<< HEAD
+    stmt.run(req.session.user.id, chatId, title, DEFAULT_MODEL);
+=======
     stmt.run(req.session.user.id, chatId, title, model, SYSTEM_PROMPT);
+>>>>>>> origin/main
     
     const chat = db.prepare('SELECT * FROM chats WHERE chat_id = ?').get(chatId);
+    appendDbLog(req, 'chat_created', { title }, chatId);
+    appendFileLog('info', 'chat_created', { userId: req.session.user.id, chatId });
     
     res.json({ success: true, chat });
   } catch (error) {
@@ -349,10 +479,18 @@ app.get('/api/chats/:chatId/messages', isAuthenticated, (req, res) => {
   }
 });
 
-app.post('/api/chats/:chatId/messages', isAuthenticated, async (req, res) => {
+app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit, async (req, res) => {
   try {
-    const { content, model } = req.body;
+    const { content } = req.body;
     const chatId = req.params.chatId;
+
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+    if (content.length > MAX_INPUT_CHARS) {
+      appendDbLog(req, 'message_too_large', { size: content.length, max: MAX_INPUT_CHARS }, chatId);
+      return res.status(400).json({ error: `Message too long (max ${MAX_INPUT_CHARS} chars)` });
+    }
     
     const chat = db.prepare('SELECT * FROM chats WHERE chat_id = ? AND user_id = ?')
       .get(chatId, req.session.user.id);
@@ -372,12 +510,13 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, async (req, res) => {
       VALUES (?, 'user', ?)
     `);
     userMsgStmt.run(chatId, content);
+    appendDbLog(req, 'message_user', { chars: content.length }, chatId);
     
     // Call Ollama API with per-chat system prompt (fallback to global)
     const response = await axios.post(
       `${OLLAMA_URL}/api/chat`,
       {
-        model: model || chat.model || DEFAULT_MODEL,
+        model: chat.model || DEFAULT_MODEL,
         messages: [
           { role: 'system', content: chat.system_prompt || SYSTEM_PROMPT },
           { role: 'user', content: content }
@@ -403,6 +542,13 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, async (req, res) => {
       VALUES (?, 'assistant', ?)
     `);
     assistantMsgStmt.run(chatId, assistantMessage);
+    appendDbLog(req, 'message_assistant', { chars: assistantMessage.length }, chatId);
+    appendFileLog('info', 'message_exchange', {
+      userId: req.session.user.id,
+      chatId,
+      inputChars: content.length,
+      outputChars: assistantMessage.length
+    });
     
     // Update chat title if it's the first message
     if (chat.title === 'New Chat') {
@@ -421,6 +567,11 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, async (req, res) => {
     res.json({ success: true, messages });
   } catch (error) {
     console.error('Send message error:', error);
+    appendFileLog('error', 'message_error', {
+      userId: req.session?.user?.id || null,
+      chatId: req.params.chatId,
+      message: error.message
+    });
     
     // Save error message
     const errorMsgStmt = db.prepare(`
@@ -444,6 +595,7 @@ app.delete('/api/chats/:chatId', isAuthenticated, (req, res) => {
     
     db.prepare('DELETE FROM messages WHERE chat_id = ?').run(req.params.chatId);
     db.prepare('DELETE FROM chats WHERE chat_id = ?').run(req.params.chatId);
+    appendDbLog(req, 'chat_deleted', {}, req.params.chatId);
     
     res.json({ success: true, message: 'Chat deleted successfully' });
   } catch (error) {
@@ -531,6 +683,26 @@ app.get('/api/session', (req, res) => {
   res.json({ success: true, user: req.session.user || null });
 });
 
+// User settings (OAuth + UI colors)
+app.get('/api/user/settings', isAuthenticated, (req, res) => {
+  const user = db.prepare('SELECT settings FROM users WHERE id = ?').get(req.session.user.id);
+  let settings = {};
+  try {
+    settings = JSON.parse(user?.settings || '{}');
+  } catch (_) {
+    settings = {};
+  }
+  res.json({ success: true, settings });
+});
+
+app.post('/api/user/settings', isAuthenticated, (req, res) => {
+  const nextSettings = req.body && typeof req.body === 'object' ? req.body : {};
+  db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(nextSettings), req.session.user.id);
+  appendDbLog(req, 'settings_updated', { keys: Object.keys(nextSettings) });
+  appendFileLog('info', 'settings_updated', { userId: req.session.user.id, keys: Object.keys(nextSettings) });
+  res.json({ success: true });
+});
+
 // Serve pages
 app.get('/login', (req, res) => {
   if (req.session.user) {
@@ -540,10 +712,7 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/signup', (req, res) => {
-  if (req.session.user) {
-    return res.redirect('/');
-  }
-  res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+  return res.redirect('/login');
 });
 
 app.get('/admin', isAdmin, (req, res) => {

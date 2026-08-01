@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign up - Claude</title>
+    <title>Sign up disabled - Zig</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="auth-body">
@@ -16,59 +16,11 @@
                 </svg>
             </div>
             
-            <h1>Create account</h1>
-            <p class="auth-subtitle">Join Claude today</p>
+            <h1>Sign up is disabled</h1>
+            <p class="auth-subtitle">An admin account can create users from the API/admin tools.</p>
             
-            <form id="signupForm" class="auth-form">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" placeholder="Username" required autofocus>
-                </div>
-                
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" placeholder="you@example.com" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="password" name="password" placeholder="Password" required minlength="8">
-                        <button type="button" class="show-password" onclick="togglePasswordVisibility('password', this)">
-                            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="confirmPassword">Confirm password</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm password" required minlength="8">
-                        <button type="button" class="show-password" onclick="togglePasswordVisibility('confirmPassword', this)">
-                            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn btn-primary btn-full">
-                    Create account
-                </button>
-                
-                <div id="errorMessage" class="error-message"></div>
-            </form>
-            
-            <div class="auth-divider">
-                <span>Already have an account?</span>
-            </div>
-            
-            <button class="btn btn-secondary btn-full" onclick="window.location.href='/login'">
-                Sign in
+            <button class="btn btn-primary btn-full" onclick="window.location.href='/login'">
+                Go to sign in
             </button>
         </div>
         
@@ -77,54 +29,5 @@
         </div>
     </div>
     
-    <script>
-        function togglePasswordVisibility(inputId, button) {
-            const input = document.getElementById(inputId);
-            const icon = button.querySelector('.eye-icon');
-            
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
-            } else {
-                input.type = 'password';
-                icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-            }
-        }
-        
-        document.getElementById('signupForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const username = document.getElementById('username').value;
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const errorEl = document.getElementById('errorMessage');
-            
-            errorEl.textContent = '';
-            
-            if (password !== confirmPassword) {
-                errorEl.textContent = 'Passwords do not match';
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, email, password })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    window.location.href = '/';
-                } else {
-                    errorEl.textContent = data.error || 'Registration failed';
-                }
-            } catch (error) {
-                errorEl.textContent = 'Connection error. Please try again.';
-            }
-        });
-    </script>
 </body>
 </html>
