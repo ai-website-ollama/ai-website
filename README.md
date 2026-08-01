@@ -1,216 +1,166 @@
-# Ollama AI Website
+# Zig AI Website (Ollama)
 
-A complete AI chat website that connects to your local Ollama instance. Built with Node.js, Express, SQLite3, and vanilla JavaScript.
+A Claude-style web chat app powered by Ollama, with SQLite persistence, admin controls, settings, and coding-focused UX.
+
+Repository: <https://github.com/ai-website-ollama/ai-website.git>
 
 ## Features
 
-- **User Authentication**: Register, login, and logout with secure password hashing
-- **Chat Management**: Create, view, and delete chat conversations
-- **Model Selection**: Choose from available Ollama models
-- **Persistent Storage**: All chats and messages stored in SQLite3 database
-- **Responsive Design**: Works on desktop and mobile devices
-- **Modal UI**: Clean modal dialogs for authentication and chat creation
-- **Memory Efficient**: Designed to run in an LXC container with 2GB RAM
+- Zig-branded chat UI with sidebar + chat history
+- Code-friendly replies with copy buttons on code blocks
+- Enter-to-send (`Shift+Enter` for newline)
+- Persistent sessions + remembers last selected chat on reload
+- SQLite database for users, chats, messages, and logs
+- File logging to `logs/app.log`
+- Per-user message rate limiting and max input length limits
+- Admin panel + admin-only user creation API
+- User settings modal for OAuth fields and UI colors
+- Ollama backend configurable by environment variables
 
-## Prerequisites
+## Tech Stack
 
-- Node.js (v18+ recommended)
-- npm or yarn
-- Ollama running at `http://192.168.10.181:11434` (configurable)
-- LXC (for containerized deployment)
+- Node.js + Express
+- better-sqlite3
+- express-session
+- bcrypt
+- Vanilla HTML/CSS/JS
 
 ## Quick Start
 
-### Option 1: Run Locally (Development)
-
 ```bash
-cd ollama-ai-website
+git clone https://github.com/ai-website-ollama/ai-website.git
+cd ai-website
+mkdir -p db logs
 npm install
 cp .env.example .env
-# Edit .env to set your Ollama URL
-nano .env
-npm start
 ```
 
-Or use the start script:
-```bash
-./scripts/start.sh
-```
-
-Access the website at: `http://localhost:3000`
-
-### Option 2: Deploy in LXC Container (Recommended)
-
-```bash
-chmod +x scripts/*.sh
-sudo ./scripts/setup.sh
-```
-
-The script will:
-1. Install LXC if not already installed
-2. Create a container with 2GB RAM limit
-3. Install Node.js and dependencies
-4. Copy application files
-5. Set up a systemd service
-6. Start the application
-
-Access the website at: `http://<container-ip>:3000`
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root:
+Edit `.env` (minimum):
 
 ```env
+PORT=8080
 OLLAMA_URL=http://192.168.10.181:11434
-PORT=3000
-SESSION_SECRET=your-secret-key-here
+SESSION_SECRET=replace-with-a-strong-random-secret
+MODEL=llama3.2
 NODE_ENV=production
 ```
 
-### Customizing Ollama URL
+Then run:
 
-If your Ollama instance is running on a different host or port, update the `OLLAMA_URL` in the `.env` file.
-
-## Project Structure
-
-```
-ollama-ai-website/
-├── server.js              # Express server with API routes
-├── package.json           # Node.js dependencies
-├── .env.example           # Environment configuration template
-├── .gitignore             # Git ignore rules
-├── public/
-│   ├── index.html         # Main HTML file
-│   ├── styles.css         # CSS styles
-│   └── app.js             # Frontend JavaScript
-├── db/
-│   └── app.db             # SQLite3 database (created on first run)
-├── scripts/
-│   ├── setup.sh           # LXC container setup script
-│   ├── start.sh            # Start script for development
-│   └── monitor.sh          # Monitoring and management script
-└── README.md
+```bash
+npm start
 ```
 
-## API Endpoints
+Open: `http://<server-ip>:8080`
 
-### Authentication
-- `POST /api/register` - Register a new user
-- `POST /api/login` - Login
-- `POST /api/logout` - Logout
-- `GET /api/session` - Check current session
+## Default Admin Bootstrap (`harry`)
 
-### Chats
-- `GET /api/chats` - List all chats for current user
-- `POST /api/chats` - Create a new chat
-- `DELETE /api/chats/:chatId` - Delete a chat
+On startup, the app ensures a `harry` user exists as admin **if total users are under 10**.
 
-### Messages
-- `GET /api/chats/:chatId/messages` - Get messages for a chat
-- `POST /api/chats/:chatId/messages` - Send a message and get AI response
+- Username: `harry`
+- Password: from `HARRY_PASSWORD` env var (default: `change-me-now`)
+- Email: from `HARRY_EMAIL` env var (default: `harry@local`)
+
+Set these in `.env` before first run:
+
+```env
+HARRY_PASSWORD=your-strong-password
+HARRY_EMAIL=harry@example.com
+```
+
+## Auth Behavior
+
+- `/signup` route is disabled (redirects to `/login`)
+- Login is available at `/login`
+- `POST /api/register` is **admin-only** (requires logged-in admin session)
+
+## Configuration
+
+### Core
+
+```env
+PORT=8080
+OLLAMA_URL=http://192.168.10.181:11434
+MODEL=llama3.2
+SYSTEM_PROMPT=You are a helpful AI assistant.
+SESSION_SECRET=replace-me
+NODE_ENV=production
+```
+
+### Limits
+
+```env
+MAX_INPUT_CHARS=12000
+MESSAGE_LIMIT_PER_MINUTE=20
+```
+
+### OAuth / Integration Fields (stored via settings UI)
+
+```env
+SPOTIFY_CLIENT_ID=
+SPOTIFY_REDIRECT_URI=
+HA_URL=
+CANVA_CLIENT_ID=
+```
+
+## Logging
+
+### File logs
+
+- Path: `logs/app.log`
+- Includes login, registration, chat/message events, rate-limit events, errors
+
+### Database logs
+
+- Table: `app_logs`
+- Includes `user_id`, `chat_id`, `event_type`, `details`, `ip`, `user_agent`, `created_at`
+
+## API Overview
+
+### Session/Auth
+
+- `GET /api/session`
+- `POST /api/login`
+- `POST /api/logout`
+- `POST /api/register` (admin only)
+
+### Chats/Messages
+
+- `GET /api/chats`
+- `POST /api/chats`
+- `GET /api/chats/:chatId/messages`
+- `POST /api/chats/:chatId/messages`
+- `DELETE /api/chats/:chatId`
+
+### Settings
+
+- `GET /api/user/settings`
+- `POST /api/user/settings`
 
 ### Models
-- `GET /api/models` - List available Ollama models
 
-## Management Commands
+- `GET /api/models`
 
-Use the `monitor.sh` script to manage the application:
+## LXC Notes
 
-```bash
-./scripts/monitor.sh start
-./scripts/monitor.sh stop
-./scripts/monitor.sh restart
-./scripts/monitor.sh status
-./scripts/monitor.sh logs
-./scripts/monitor.sh logs -f
-./scripts/monitor.sh shell
-./scripts/monitor.sh backup
-./scripts/monitor.sh restore /path/to/backup.sqlite
-./scripts/monitor.sh stats
-```
-
-### LXC Container Commands
+If running in LXC and native module builds fail:
 
 ```bash
-./scripts/monitor.sh lxc-start
-./scripts/monitor.sh lxc-stop
-./scripts/monitor.sh lxc-restart
-./scripts/monitor.sh lxc-shell
+apt update
+apt install -y build-essential python3 make g++
+npm rebuild bcrypt better-sqlite3 --build-from-source
 ```
 
-## Database
+## Production Notes
 
-The application uses SQLite3 for data storage. The database file is located at `db/app.db` and contains:
+- Use HTTPS in front of the app
+- Set a strong `SESSION_SECRET`
+- Keep `NODE_ENV=production`
+- Rotate bootstrap default password immediately
 
-- **users**: User accounts with hashed passwords
-- **chats**: Chat conversations
-- **messages**: Individual messages in chats
-
-### Backup and Restore
+## Scripts
 
 ```bash
-# Manual backup
-cp db/app.db db/backup/app_db_$(date +%Y%m%d_%H%M%S).sqlite
-
-# Manual restore
-cp db/backup/app_db_*.sqlite db/app.db
+npm start
+npm run dev
 ```
-
-## Security
-
-- Passwords are hashed using bcrypt
-- Session cookies are secure (in production, use HTTPS)
-- SQLite3 database is stored locally
-- No external dependencies beyond Node.js and SQLite3
-
-## Customization
-
-### Changing the Theme
-
-Edit the CSS variables in `public/styles.css`:
-
-```css
-:root {
-    --primary-color: #7b68ee;
-    --background-color: #0f172a;
-    --surface-color: #1e293b;
-    /* ... */
-}
-```
-
-### Adding More Models
-
-The application automatically fetches available models from your Ollama instance.
-
-## Troubleshooting
-
-### Ollama Connection Issues
-
-1. Verify Ollama is running: `curl http://192.168.10.181:11434/api/tags`
-2. Check the URL in your `.env` file
-3. Ensure your LXC container can reach the Ollama host
-
-### Database Issues
-
-1. Check file permissions: `chmod 644 db/app.db`
-2. Verify the `db` directory exists
-3. Check for write permissions in the application directory
-
-### Port Conflicts
-
-1. Change the `PORT` in your `.env` file
-2. Ensure the port is not blocked by a firewall
-
-### Memory Issues
-
-The application is designed to run with 2GB RAM. If you experience memory issues:
-
-1. Reduce the number of concurrent users
-2. Limit the model size in Ollama
-3. Increase the container memory limit in the setup script
-
-## License
-
-MIT License
