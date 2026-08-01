@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # Zig AI Website (Ollama)
 
 A Claude-style web chat app powered by Ollama, with SQLite persistence, admin controls, settings, and coding-focused UX.
@@ -36,7 +36,7 @@ Zig is a student-focused coding assistant web app that connects to a local Ollam
 
 ## Tech Stack
 
-<<<<<<< HEAD
+
 - Node.js + Express
 - better-sqlite3
 - express-session
