@@ -82,6 +82,33 @@ body {
     display: flex;
     flex-direction: column;
     transition: width var(--transition-normal);
+    position: relative;
+    min-width: 180px;
+    max-width: 720px;
+}
+
+/* Sidebar resize handle */
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    cursor: ew-resize;
+    height: 100%;
+    background: transparent;
+    z-index: 50;
+}
+
+.sidebar-resizer:hover {
+    background: rgba(255,255,255,0.02);
+}
+
+.sidebar-resizer.active {
+    background: rgba(255,255,255,0.04);
+}
+
+@media (max-width: 640px) {
+    .sidebar-resizer { display: none; }
 }
 
 .sidebar-header {
@@ -770,6 +797,19 @@ body {
     justify-content: flex-end;
     padding: 16px 20px;
     border-top: 1px solid var(--bg-tertiary);
+}
+
+/* System prompt textarea */
+.system-prompt-textarea {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--bg-hover);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    resize: vertical;
+    min-height: 120px;
 }
 
 /* ===== Buttons ===== */
