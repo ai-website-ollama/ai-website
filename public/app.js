@@ -18,6 +18,7 @@ class ZigApp {
         this.logoutBtn = document.getElementById('logoutBtn');
         this.mobileMenuBtn = document.getElementById('mobileMenuBtn');
         this.sidebarResizer = document.getElementById('sidebarResizer');
+        this.sidebarOverlay = document.getElementById('sidebarOverlay');
 
         this.settingsModal = document.getElementById('settingsModal');
         this.closeSettingsModalBtn = document.getElementById('closeSettingsModalBtn');
@@ -63,6 +64,9 @@ class ZigApp {
     setupEventListeners() {
         if (this.mobileMenuBtn) {
             this.mobileMenuBtn.addEventListener('click', () => this.toggleSidebar());
+        }
+        if (this.sidebarOverlay) {
+            this.sidebarOverlay.addEventListener('click', () => this.closeSidebar());
         }
         if (this.newChatBtn) {
             this.newChatBtn.addEventListener('click', () => this.createNewChat());
@@ -210,7 +214,15 @@ class ZigApp {
     }
 
     toggleSidebar() {
-        if (this.sidebar) this.sidebar.classList.toggle('active');
+        if (this.sidebar) {
+            this.sidebar.classList.toggle('active');
+            if (this.sidebarOverlay) this.sidebarOverlay.classList.toggle('active', this.sidebar.classList.contains('active'));
+        }
+    }
+
+    closeSidebar() {
+        if (this.sidebar) this.sidebar.classList.remove('active');
+        if (this.sidebarOverlay) this.sidebarOverlay.classList.remove('active');
     }
 
     async checkSession() {
@@ -293,6 +305,7 @@ class ZigApp {
 
     async createNewChat() {
         if (!this.user) { window.location.href = '/login'; return null; }
+        this.closeSidebar();
         this.showLoading();
         try {
             const response = await fetch('/api/chats', {
@@ -320,6 +333,7 @@ class ZigApp {
 
     async loadChat(chatId) {
         this.currentChatId = chatId;
+        this.closeSidebar();
         if (this.chatList) {
             document.querySelectorAll('.chat-item').forEach(item => item.classList.remove('active'));
             const activeItem = document.querySelector('.chat-item[data-chat-id="' + chatId + '"]');
