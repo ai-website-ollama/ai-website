@@ -150,35 +150,50 @@ function generateVerificationCode() {
 async function webSearch(query) {
   const currentYear = new Date().getFullYear();
   try {
-    const response = await axios.get('https://html.duckduckgo.com/html/', {
-      params: { q: query + ' ' + currentYear, kl: 'us-en' },
-      timeout: 10000,
-      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-    });
-    const html = response.data || '';
-    const results = [];
-    const resultRegex = /<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
-    let match;
-    while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
-      let url = match[1];
-      try { const u = new URL(url, 'https://duckduckgo.com'); url = u.searchParams.get('uddg') || url; } catch (_) {}
-      const title = match[2].replace(/<[^>]*>/g, '').trim();
-      const snippet = match[3].replace(/<[^>]*>/g, '').trim();
-      if (title && url) results.push({ title, url, snippet });
-    }
+    // Try DuckDuckGo lite first
+    let results = [];
+    try {
+      const response = await axios.get('https://lite.duckduckgo.com/lite/', {
+        params: { q: query + ' ' + currentYear, kl: 'us-en' },
+        timeout: 10000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+      });
+      const html = response.data || '';
+      const linkRegex = /<a[^>]*rel="nofollow"[^>]*href="([^"]*)"[^>]*class="result-link"[^>]*>([\s\S]*?)<\/a>/gi;
+      const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+      const links = [];
+      const snippets = [];
+      let m;
+      while ((m = linkRegex.exec(html)) !== null) links.push({ url: m[1], title: m[2].replace(/<[^>]*>/g, '').trim() });
+      while ((m = snippetRegex.exec(html)) !== null) snippets.push(m[1].replace(/<[^>]*>/g, '').trim());
+      for (let i = 0; i < links.length && results.length < 8; i++) {
+        if (links[i].title) results.push({ title: links[i].title, url: links[i].url, snippet: snippets[i] || '' });
+      }
+    } catch (_) {}
+
+    // Fallback: try standard HTML endpoint
     if (results.length === 0) {
-      const simpler = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-      while ((match = simpler.exec(html)) !== null && results.length < 8) {
-        let url = match[1];
+      const response = await axios.get('https://html.duckduckgo.com/html/', {
+        params: { q: query + ' ' + currentYear },
+        timeout: 10000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+      });
+      const html = response.data || '';
+      const regex = /<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+      let m;
+      while ((m = regex.exec(html)) !== null && results.length < 8) {
+        let url = m[1];
         try { const u = new URL(url, 'https://duckduckgo.com'); url = u.searchParams.get('uddg') || url; } catch (_) {}
-        const title = match[2].replace(/<[^>]*>/g, '').trim();
-        if (title && url) results.push({ title, url, snippet: '' });
+        const title = m[2].replace(/<[^>]*>/g, '').trim();
+        const snippet = m[3].replace(/<[^>]*>/g, '').trim();
+        if (title) results.push({ title, url, snippet });
       }
     }
 
-    // Fetch top result pages for richer content
+    // Fetch top 2 result pages for richer content
     const enriched = [];
-    for (const r of results.slice(0, 3)) {
+    for (let idx = 0; idx < Math.min(results.length, 2); idx++) {
+      const r = results[idx];
       try {
         const pageRes = await axios.get(r.url, {
           timeout: 5000,
@@ -186,19 +201,18 @@ async function webSearch(query) {
           maxRedirects: 3
         });
         const text = (pageRes.data || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').substring(0, 3000);
-        enriched.push({ title: r.title, url: r.url, content: text.substring(0, 800) });
+        enriched.push((idx+1) + '. ' + r.title + '\nURL: ' + r.url + '\n' + text.substring(0, 600));
       } catch (_) {
-        enriched.push({ title: r.title, url: r.url, content: r.snippet || '' });
+        enriched.push((idx+1) + '. ' + r.title + '\nURL: ' + r.url + '\n' + r.snippet);
       }
     }
 
-    if (enriched.length > 0) {
-      return enriched.map((r, i) => (i+1) + '. ' + r.title + '\nURL: ' + r.url + '\n' + r.content).join('\n\n');
-    }
-    return results.map((r, i) => (i+1) + '. ' + r.title + '\n' + r.url + '\n' + r.snippet).join('\n\n');
+    if (enriched.length > 0) return enriched.join('\n\n');
+    if (results.length > 0) return results.map((r, i) => (i+1) + '. ' + r.title + '\n' + r.url + '\n' + r.snippet).join('\n\n');
+    return '';
   } catch (e) {
-    console.error('Web search helper error:', e.message);
-    return 'Search failed: ' + e.message;
+    console.error('Web search error:', e.message);
+    return '';
   }
 }
 
@@ -811,41 +825,14 @@ app.get('/api/search', isAuthenticated, async (req, res) => {
     const q = (req.query.q || '').trim();
     if (!q) return res.status(400).json({ error: 'Query required' });
 
-    const response = await axios.get('https://html.duckduckgo.com/html/', {
-      params: { q },
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    });
-
-    const html = response.data || '';
-    const results = [];
-    const resultRegex = /<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
-    let match;
-    while ((match = resultRegex.exec(html)) !== null && results.length < 10) {
-      let url = match[1];
-      try {
-        const u = new URL(url, 'https://duckduckgo.com');
-        url = u.searchParams.get('uddg') || url;
-      } catch (_) {}
-      const title = match[2].replace(/<[^>]*>/g, '').trim();
-      const snippet = match[3].replace(/<[^>]*>/g, '').trim();
-      if (title && url) results.push({ title, url, snippet });
-    }
-
-    if (results.length === 0) {
-      const simpler = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-      while ((match = simpler.exec(html)) !== null && results.length < 10) {
-        let url = match[1];
-        try {
-          const u = new URL(url, 'https://duckduckgo.com');
-          url = u.searchParams.get('uddg') || url;
-        } catch (_) {}
-        const title = match[2].replace(/<[^>]*>/g, '').trim();
-        if (title && url) results.push({ title, url, snippet: '' });
-      }
-    }
+    const text = await webSearch(q);
+    const results = text.split('\n\n').filter(Boolean).map(block => {
+      const lines = block.split('\n');
+      const titleMatch = lines[0] || '';
+      const urlMatch = (block.match(/URL:\s*(.+)/) || [])[1] || '';
+      const snippet = lines.slice(1).join(' ').substring(0, 300);
+      return { title: titleMatch.replace(/^\d+\.\s*/, ''), url: urlMatch, snippet };
+    }).filter(r => r.title);
 
     appendDbLog(req, 'web_search', { query: q, results: results.length });
     res.json({ success: true, query: q, results });
