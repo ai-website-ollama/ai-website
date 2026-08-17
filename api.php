@@ -16,6 +16,8 @@ if (file_exists(__DIR__.'/.env')) {
   }
 }
 
+date_default_timezone_set('Australia/Sydney');
+
 $PORT          = (int)($_ENV['PORT']          ?? getenv('PORT') ?: 3000);
 $OLLAMA_URL    = $_ENV['OLLAMA_URL']          ?? getenv('OLLAMA_URL') ?: 'http://192.168.10.181:11434';
 $DEFAULT_MODEL = $_ENV['MODEL']               ?? getenv('MODEL') ?: 'llama3.2';
