@@ -694,25 +694,21 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
       appendDbLog(req, 'ai_search_triggered', { query: searchQuery }, chatId);
       const searchResults = await webSearch(searchQuery);
 
-      // Second pass: feed search results back to AI
-      try {
-        const secondResponse = await axios.post(
-          `${OLLAMA_URL}/api/chat`,
-          {
-            model: chat.model || DEFAULT_MODEL,
-            messages: [
-              { role: 'system', content: 'You are a helpful assistant. A web search was performed. Below are the raw search results. Your ONLY job is to format these results into a clear, helpful answer for the user. Do NOT add any information that is not in the search results. Do NOT mention any product, phone, or item that does not appear in the results below. If the results mention iPhone 17, you say iPhone 17. If they mention Galaxy S26, you say Galaxy S26. Never substitute older model names.\n\nSEARCH RESULTS:\n' + searchResults },
-              { role: 'user', content: 'Based ONLY on these search results, answer this question: ' + content }
-            ],
-            stream: false
-          },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 120000 }
-        );
-        assistantMessage = secondResponse.data?.message?.content || assistantMessage;
-      } catch (e) {
-        console.error('Second pass error:', e.message);
-        assistantMessage = 'Here are the latest search results for "' + searchQuery + '":\n\n' + searchResults;
-      }
+      // Skip second AI pass — llama3.2 ignores instructions too often
+      // Just return formatted search results directly
+      const formattedResults = searchResults
+        .split('\n\n---\n\n')
+        .filter(Boolean)
+        .map((block, i) => {
+          const lines = block.split('\n');
+          const title = lines[0] || '';
+          const url = (block.match(/URL:\s*(.+)/) || [])[1] || '';
+          const content = lines.slice(1).join('\n').replace(/^Content:\s*/, '').substring(0, 500);
+          return (i + 1) + '. **' + title + '**\n' + (content ? content + '\n' : '') + (url ? '🔗 ' + url : '');
+        })
+        .join('\n\n');
+
+      assistantMessage = '🔍 Here are the latest results for **"' + searchQuery + '"**:\n\n' + (formattedResults || searchResults);
     }
 
     // sanitize assistant output for obvious jailbreak attempts
