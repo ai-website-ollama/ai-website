@@ -57,6 +57,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M5 3l14 9-6.5 1L10 20z' fill='%23e91e8c' stroke='%23fff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 3 3, auto;
 }
 
 body {
@@ -66,6 +67,18 @@ body {
     height: 100vh;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
+}
+
+a, button, [role="button"], select, input[type="submit"], input[type="button"],
+.chat-item, .example-btn, .send-btn, .mobile-menu-btn,
+.user-action-btn, .chat-action-btn, .close-modal, .copy-code-btn,
+.action-btn, .upload-btn, .new-chat-btn, .modal-overlay,
+label[for], .badge, th {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M5 3l14 9-6.5 1L10 20z' fill='%23f472b6' stroke='%23fff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 3 3, pointer !important;
+}
+
+a:active, button:active, [role="button"]:active {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M5 3l14 9-6.5 1L10 20z' fill='%23c41678' stroke='%23fff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") 3 3, pointer !important;
 }
 
 /* ===== App Container ===== */
