@@ -592,6 +592,18 @@ class ZigApp {
         if (this.searchInput) this.searchInput.value = '';
     }
 
+    injectSearchResult(url, title) {
+        this.closeSearchModal();
+        if (this.messageInput) {
+            const current = this.messageInput.value.trim();
+            this.messageInput.value = current
+                ? current + '\n\nSearch result: ' + title + '\n' + url
+                : 'Look up this result for me: ' + title + '\n' + url;
+            this.messageInput.focus();
+            this.autoResizeTextarea();
+        }
+    }
+
     async performSearch() {
         const q = this.searchInput ? this.searchInput.value.trim() : '';
         if (!q) return this.showError('Enter a search query');
@@ -600,12 +612,18 @@ class ZigApp {
             const res = await fetch('/api/search?q=' + encodeURIComponent(q));
             const data = await res.json();
             if (data.success) {
-                const items = [];
-                if (data.abstract) items.push({ text: data.abstract, url: data.abstractUrl });
-                (data.related || []).forEach(r => {
-                    if (Array.isArray(r)) r.forEach(i => items.push(i)); else items.push(r);
-                });
-                this.searchResults.innerHTML = items.map(it => '<div style="margin-bottom:12px"><div style="font-weight:600">' + this.escapeHtml(it.text || it.title || '') + '</div>' + (it.url ? '<div style="font-size:12px;color:var(--text-muted)">' + this.escapeHtml(it.url) + '</div>' : '') + '</div>').join('');
+                const results = data.results || [];
+                if (results.length === 0) {
+                    this.searchResults.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No results found</div>';
+                } else {
+                    this.searchResults.innerHTML = results.map(r =>
+                        '<div style="margin-bottom:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-md);cursor:pointer;" onclick="app.injectSearchResult(\'' + this.escapeHtml(r.url).replace(/'/g, "\\'") + '\', \'' + this.escapeHtml(r.title).replace(/'/g, "\\'") + '\')">' +
+                            '<div style="font-weight:600;color:var(--accent-primary);font-size:14px;margin-bottom:4px;">' + this.escapeHtml(r.title) + '</div>' +
+                            '<div style="font-size:11px;color:var(--text-muted);word-break:break-all;margin-bottom:4px;">' + this.escapeHtml(r.url) + '</div>' +
+                            (r.snippet ? '<div style="font-size:13px;color:var(--text-secondary);">' + this.escapeHtml(r.snippet) + '</div>' : '') +
+                        '</div>'
+                    ).join('');
+                }
             } else {
                 this.searchResults.innerHTML = '<div class="error-message">Search failed</div>';
             }

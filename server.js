@@ -724,34 +724,53 @@ app.get('/api/models', async (req, res) => {
   }
 });
 
-// Simple web search proxy using DuckDuckGo Instant Answer API
+// Web search via DuckDuckGo HTML scraping
 app.get('/api/search', isAuthenticated, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     if (!q) return res.status(400).json({ error: 'Query required' });
 
-    const response = await axios.get('https://api.duckduckgo.com/', {
-      params: {
-        q,
-        format: 'json',
-        no_redirect: 1,
-        no_html: 1
-      },
-      timeout: 8000
+    const response = await axios.get('https://html.duckduckgo.com/html/', {
+      params: { q },
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
     });
 
-    const d = response.data || {};
-    // Return useful fields: AbstractText, AbstractURL, RelatedTopics (limited)
-    const related = (d.RelatedTopics || []).slice(0, 8).map(t => {
-      if (t.Text) return { text: t.Text, url: t.FirstURL };
-      if (t.Topics) return t.Topics.slice(0,3).map(st => ({ text: st.Text, url: st.FirstURL }));
-      return null;
-    }).filter(Boolean);
+    const html = response.data || '';
+    const results = [];
+    const resultRegex = /<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = resultRegex.exec(html)) !== null && results.length < 10) {
+      let url = match[1];
+      try {
+        const u = new URL(url, 'https://duckduckgo.com');
+        url = u.searchParams.get('uddg') || url;
+      } catch (_) {}
+      const title = match[2].replace(/<[^>]*>/g, '').trim();
+      const snippet = match[3].replace(/<[^>]*>/g, '').trim();
+      if (title && url) results.push({ title, url, snippet });
+    }
 
-    res.json({ success: true, query: q, abstract: d.AbstractText || '', abstractUrl: d.AbstractURL || '', related });
+    if (results.length === 0) {
+      const simpler = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+      while ((match = simpler.exec(html)) !== null && results.length < 10) {
+        let url = match[1];
+        try {
+          const u = new URL(url, 'https://duckduckgo.com');
+          url = u.searchParams.get('uddg') || url;
+        } catch (_) {}
+        const title = match[2].replace(/<[^>]*>/g, '').trim();
+        if (title && url) results.push({ title, url, snippet: '' });
+      }
+    }
+
+    appendDbLog(req, 'web_search', { query: q, results: results.length });
+    res.json({ success: true, query: q, results });
   } catch (error) {
     console.error('Search error:', error.message || error);
-    res.status(500).json({ error: 'Search failed' });
+    res.status(500).json({ error: 'Search failed: ' + (error.message || 'unknown') });
   }
 });
 
