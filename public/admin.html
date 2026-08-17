@@ -274,9 +274,11 @@
             loadDashboard();
             document.querySelectorAll('.admin-nav-item').forEach(item => {
                 item.addEventListener('click', e => {
-                    e.preventDefault();
                     const s = item.dataset.section;
-                    if (s) showSection(s);
+                    if (s) {
+                        e.preventDefault();
+                        showSection(s);
+                    }
                 });
             });
             document.querySelectorAll('.modal').forEach(m => {

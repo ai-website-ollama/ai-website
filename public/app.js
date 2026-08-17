@@ -23,8 +23,6 @@ class ZigApp {
         this.closeSettingsModalBtn = document.getElementById('closeSettingsModalBtn');
         this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
         this.cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
-        this.settingsModel = document.getElementById('settingsModel');
-        this.settingsSystemPrompt = document.getElementById('settingsSystemPrompt');
         this.settingsCompact = document.getElementById('settingsCompact');
         this.settingsTimestamps = document.getElementById('settingsTimestamps');
         this.settingsVoiceEnabled = document.getElementById('settingsVoiceEnabled');
@@ -48,6 +46,8 @@ class ZigApp {
         this.isSending = false;
         this.confirmAction = null;
         this.currentSystemPrompt = null;
+        this.uploadedText = null;
+        this.uploadedFilename = null;
 
         this.init();
     }
@@ -109,6 +109,16 @@ class ZigApp {
             this.settingsModal.addEventListener('click', (e) => {
                 if (e.target === this.settingsModal) this.closeSettingsModal();
             });
+        }
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileUpload = document.getElementById('fileUpload');
+        const removeUpload = document.getElementById('removeUpload');
+        if (uploadBtn && fileUpload) {
+            uploadBtn.addEventListener('click', () => fileUpload.click());
+            fileUpload.addEventListener('change', (e) => this.handleFileUpload(e.target.files[0]));
+        }
+        if (removeUpload) {
+            removeUpload.addEventListener('click', () => this.clearUpload());
         }
         if (this.webSearchBtn) {
             this.webSearchBtn.addEventListener('click', () => this.showSearchModal());
@@ -401,18 +411,28 @@ class ZigApp {
 
     async sendMessage() {
         const content = this.messageInput.value.trim();
-        if (!content || this.isSending) return;
+        if (!content && !this.uploadedText) return;
+        if (this.isSending) return;
         if (!this.currentChatId) {
             const chatId = await this.createNewChat();
             if (!chatId) return;
             this.currentChatId = chatId;
         }
+
+        let fullContent = content;
+        if (this.uploadedText) {
+            fullContent = content
+                ? `[File: ${this.uploadedFilename}]\n\n${this.uploadedText}\n\n---\n\n${content}`
+                : `[File: ${this.uploadedFilename}]\n\nPlease analyze this file.`;
+        }
+
         this.isSending = true;
         this.messageInput.disabled = true;
         this.sendBtn.disabled = true;
         if (this.welcomeMessage) this.welcomeMessage.style.display = 'none';
-        this.renderMessage({ role: 'user', content: content, created_at: new Date().toISOString() });
+        this.renderMessage({ role: 'user', content: content + (this.uploadedText ? '\n\n📎 ' + this.uploadedFilename : ''), created_at: new Date().toISOString() });
         this.messageInput.value = '';
+        this.clearUpload();
         this.autoResizeTextarea();
         const typingIndicator = document.createElement('div');
         typingIndicator.className = 'message assistant typing-indicator';
@@ -423,7 +443,7 @@ class ZigApp {
             const response = await fetch('/api/chats/' + this.currentChatId + '/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: content })
+                body: JSON.stringify({ content: fullContent })
             });
             const data = await response.json();
             if (data.success) {
@@ -501,7 +521,6 @@ class ZigApp {
     showSettingsModal() {
         this.loadUserSettings().then(settings => {
             const s = settings || {};
-            const profile = s.profile || {};
             const appearance = s.appearance || {};
             const voice = s.voice || {};
 
@@ -515,10 +534,6 @@ class ZigApp {
                 document.getElementById('settingsAgeInfo').textContent = age >= 18 ? 'Age ' + age + ' (unrestricted)' : 'Age ' + age + ' (content filtered)';
             }
 
-            if (this.settingsModel) {
-                this.settingsModel.innerHTML = this.models.map(m => '<option value="' + m + '"' + (m === this.currentModel ? ' selected' : '') + '>' + m + '</option>').join('');
-            }
-            if (this.settingsSystemPrompt) this.settingsSystemPrompt.value = profile.systemPrompt || '';
             if (this.settingsCompact) this.settingsCompact.checked = !!appearance.compact;
             if (this.settingsTimestamps) this.settingsTimestamps.checked = appearance.timestamps !== false;
             if (this.settingsVoiceEnabled) this.settingsVoiceEnabled.checked = voice.enabled !== false;
@@ -536,9 +551,6 @@ class ZigApp {
 
     async saveSettings() {
         const settings = {
-            profile: {
-                systemPrompt: this.settingsSystemPrompt ? this.settingsSystemPrompt.value.trim() : ''
-            },
             appearance: {
                 compact: this.settingsCompact ? this.settingsCompact.checked : false,
                 timestamps: this.settingsTimestamps ? this.settingsTimestamps.checked : true
@@ -640,6 +652,43 @@ class ZigApp {
         if (!this.messageInput) return;
         this.messageInput.style.height = 'auto';
         this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+    }
+
+    async handleFileUpload(file) {
+        if (!file) return;
+        const preview = document.getElementById('uploadPreview');
+        const fileName = document.getElementById('uploadFileName');
+        const status = document.getElementById('uploadStatus');
+        if (preview) preview.style.display = 'flex';
+        if (fileName) fileName.textContent = file.name;
+        if (status) status.textContent = 'Uploading...';
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+                this.uploadedText = data.text;
+                this.uploadedFilename = data.filename;
+                if (status) status.textContent = data.chars + ' chars extracted';
+                if (this.sendBtn) this.sendBtn.disabled = false;
+            } else {
+                if (status) status.textContent = 'Error: ' + (data.error || 'Failed');
+                this.clearUpload();
+            }
+        } catch (e) {
+            if (status) status.textContent = 'Upload failed';
+            this.clearUpload();
+        }
+        const fileUpload = document.getElementById('fileUpload');
+        if (fileUpload) fileUpload.value = '';
+    }
+
+    clearUpload() {
+        this.uploadedText = null;
+        this.uploadedFilename = null;
+        const preview = document.getElementById('uploadPreview');
+        if (preview) preview.style.display = 'none';
     }
 
     scrollToBottom() {

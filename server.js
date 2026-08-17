@@ -8,6 +8,8 @@ const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -491,6 +493,41 @@ app.post('/api/chats', isAuthenticated, (req, res) => {
   } catch (error) {
     console.error('Create chat error:', error);
     res.status(500).json({ error: 'Failed to create chat' });
+  }
+});
+
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.txt', '.csv', '.json', '.md', '.log', '.xml', '.html', '.js', '.py', '.java', '.cpp', '.c', '.h', '.css', '.sql', '.sh', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('File type not allowed: ' + ext));
+  }
+});
+
+app.post('/api/upload', isAuthenticated, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
+    let text = '';
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (ext === '.pdf') {
+      const data = await pdfParse(req.file.buffer);
+      text = data.text || '';
+    } else {
+      text = req.file.buffer.toString('utf8');
+    }
+    const MAX_CHARS = 30000;
+    if (text.length > MAX_CHARS) {
+      text = text.substring(0, MAX_CHARS) + '\n\n[...truncated — file exceeded ' + MAX_CHARS + ' characters]';
+    }
+    appendDbLog(req, 'file_upload', { filename: req.file.originalname, size: req.file.size, ext, chars: text.length });
+    res.json({ success: true, filename: req.file.originalname, text, chars: text.length });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to process file: ' + error.message });
   }
 });
 

@@ -1583,3 +1583,28 @@ body.compact .input-area {
 .system-prompt-textarea::placeholder {
     color: var(--text-muted);
 }
+
+/* Upload button */
+.upload-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.upload-btn:hover {
+    color: var(--accent-primary);
+    background: var(--bg-hover);
+}
+
+.upload-btn svg {
+    width: 20px;
+    height: 20px;
+}
