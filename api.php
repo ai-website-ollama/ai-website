@@ -376,7 +376,23 @@ if (str_starts_with($uri, '/api/')) {
     if (!$chat) out(['error'=>'Chat not found'], 404);
     if (is_unsafe($content)) out(['error'=>'Message contains unsafe or disallowed patterns.'], 400);
 
-    if (!rate_ok($db)) { db_log($db,'message_rate_limit',['limit'=>$RATE_LIMIT]); out(['error'=>'Rate limit reached. Please wait a minute.'], 429); }
+    if (!rate_ok($db)) { db_log($db,'message_rate_limit',['limit'=>$RATE_LIMIT], $cid); out(['error'=>'Rate limit reached. Please wait a minute.'], 429); }
+
+    // Intercept time/date queries — fetch from Cloudflare directly
+    $lower = strtolower($content);
+    if (preg_match('/\b(what(?:\'s| is| are)|tell me|get|show|current|right now|exact)\b.*\b(time|date|day|clock|year|month)\b/i', $lower)
+        || preg_match('/\b(time|date|day|clock|what day|what time|what date|what year|what month)\b/i', $lower)) {
+      $timeText = @file_get_contents('https://time.cloudflare.com/');
+      if ($timeText !== false) {
+        $timeText = trim($timeText);
+        // Save and return
+        $s = $db->prepare('INSERT INTO messages (chat_id,role,content) VALUES(:cid,\'assistant\',:c)');
+        $s->bindValue(':cid',$cid); $s->bindValue(':c',$timeText); $s->execute();
+        $res = $db->query("SELECT * FROM messages WHERE chat_id='".$db->escapeString($cid)."' ORDER BY created_at ASC");
+        $msgs = []; while ($r = $res->fetchArray(SQLITE3_ASSOC)) $msgs[] = $r;
+        out(['success'=>true,'messages'=>$msgs]);
+      }
+    }
 
     // Save user message
     $s = $db->prepare('INSERT INTO messages (chat_id,role,content) VALUES(:cid,\'user\',:c)');
