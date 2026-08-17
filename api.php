@@ -146,43 +146,31 @@ function curl_post(string $url, array $data, int $timeout = 120) {
 }
 
 function web_search(string $query): string {
-  $year = date('Y'); $ua = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'; $results = [];
+  $year = date('Y');
+  $results = [];
   try {
-    $html = curl_get('https://lite.duckduckgo.com/lite/?q='.urlencode("$query $year").'&kl=us-en');
-    if ($html) {
-      preg_match_all('/<a[^>]*rel="nofollow"[^>]*href="([^"]*)"[^>]*class="result-link"[^>]*>([\s\S]*?)<\/a>/i', $html, $lm);
-      preg_match_all('/<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/i', $html, $sm);
-      for ($i = 0; $i < count($lm[1]) && count($results) < 8; $i++) {
-        $title = trim(strip_tags($lm[2][$i] ?? ''));
-        if ($title) $results[] = ['title'=>$title, 'url'=>$lm[1][$i], 'snippet'=>trim(strip_tags($sm[1][$i] ?? ''))];
+    $url = 'https://search.notahomelab.com/search?q=' . urlencode("$query $year") . '&format=json&categories=general';
+    $r = curl_get($url, 10);
+    if ($r) {
+      $d = json_decode($r, true);
+      if (!empty($d['results'])) {
+        foreach (array_slice($d['results'], 0, 8) as $res) {
+          $results[] = [
+            'title'   => $res['title'] ?? '',
+            'url'     => $res['url'] ?? '',
+            'snippet' => $res['content'] ?? '',
+          ];
+        }
       }
     }
   } catch (\Throwable $e) {}
-  if (empty($results)) {
-    try {
-      $html = curl_get('https://html.duckduckgo.com/html/?q='.urlencode("$query $year"));
-      if ($html) {
-        preg_match_all('/<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i', $html, $m);
-        for ($i = 0; $i < count($m[1]) && count($results) < 8; $i++) {
-          $u = $m[1][$i]; if (preg_match('/uddg=([^&]+)/', $u, $uu)) $u = urldecode($uu[1]);
-          $title = trim(strip_tags($m[2][$i]));
-          if ($title) $results[] = ['title'=>$title, 'url'=>$u, 'snippet'=>trim(strip_tags($m[3][$i]))];
-        }
-      }
-    } catch (\Throwable $e) {}
-  }
+  if (empty($results)) return '';
   $out = [];
-  for ($i = 0; $i < min(count($results), 2); $i++) {
+  for ($i = 0; $i < min(count($results), 3); $i++) {
     $r = $results[$i];
-    try {
-      $page = curl_get($r['url'], 5);
-      $text = $page ? mb_substr(preg_replace('/\s+/', ' ', strip_tags($page)), 0, 600) : $r['snippet'];
-      $out[] = ($i+1).". {$r['title']}\nURL: {$r['url']}\n$text";
-    } catch (\Throwable $e) { $out[] = ($i+1).". {$r['title']}\nURL: {$r['url']}\n{$r['snippet']}"; }
+    $out[] = ($i+1).". {$r['title']}\nURL: {$r['url']}\n{$r['snippet']}";
   }
-  if (!empty($out)) return implode("\n\n", $out);
-  if (!empty($results)) return implode("\n\n", array_map(fn($i,$r) => ($i+1).". {$r['title']}\n{$r['url']}\n{$r['snippet']}", range(0,count($results)-1), $results));
-  return '';
+  return implode("\n\n", $out);
 }
 
 // ── Bootstrap ──
