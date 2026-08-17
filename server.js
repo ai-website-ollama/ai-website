@@ -413,7 +413,7 @@ app.post('/api/admin/change-password', isAdmin, async (req, res) => {
 
 app.get('/api/admin/users', isAdmin, (req, res) => {
   try {
-    const users = db.prepare('SELECT id, username, email, is_admin, age, verified, verification_code, created_at FROM users').all();
+    const users = db.prepare('SELECT id, username, email, is_admin, age, verified, created_at FROM users').all();
     res.json({ success: true, users });
   } catch (error) {
     console.error('Get users error:', error);

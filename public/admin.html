@@ -112,11 +112,11 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Age</th><th>Verified</th><th>Code</th><th>Joined</th><th>Actions</th>
+                                    <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Age</th><th>Verified</th><th>Joined</th><th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="9">Loading users...</td></tr>
+                                <tr><td colspan="8">Loading users...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -334,16 +334,14 @@
                 data.users.forEach(u => {
                     const age = u.age != null ? u.age : 18;
                     const ageLabel = age >= 18 ? age : age + ' (filtered)';
-                    const row = document.createElement('tr');
-                    const row = document.createElement('tr');
                     const uid = u.id;
                     const uname = esc(u.username);
+                    const row = document.createElement('tr');
                     row.innerHTML =
                         '<td>'+uid+'</td><td>'+uname+'</td><td>'+esc(u.email)+'</td>' +
                         '<td><span class="badge '+(u.is_admin?'badge-admin':'badge-user')+'">'+(u.is_admin?'Admin':'User')+'</span></td>' +
                         '<td><span style="cursor:pointer;color:var(--accent-primary)" onclick="promptSetAge('+uid+',\''+uname+'\','+age+')">'+ageLabel+'</span></td>' +
                         '<td><span style="color:'+(u.verified?'var(--success)':'var(--danger)')+'">'+(u.verified?'Yes':'No')+'</span></td>' +
-                        '<td><code style="font-size:11px;background:var(--bg-input);padding:2px 6px;border-radius:4px;">'+(u.verification_code||(u.verified?'N/A':'None'))+'</code></td>' +
                         '<td>'+new Date(u.created_at).toLocaleDateString()+'</td>' +
                         '<td><div class="action-buttons">' +
                         (!u.verified?'<button class="action-btn" onclick="resendVerification('+uid+',\''+uname+'\')" title="Resend Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>':'') +
