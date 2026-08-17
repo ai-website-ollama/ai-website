@@ -199,6 +199,7 @@ class ZigApp {
                 this.updateUserInfo();
                 this.updateUI();
                 this.loadChats();
+                setTimeout(() => { if (this.messageInput) this.messageInput.focus(); }, 500);
             } else {
                 window.location.href = '/login';
             }

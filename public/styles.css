@@ -11,9 +11,9 @@
     --text-secondary: #a0a0a0;
     --text-muted: #6b6b6b;
     
-    --accent-primary: #6366f1;
-    --accent-hover: #4f46e5;
-    --accent-secondary: #818cf8;
+    --accent-primary: #e91e8c;
+    --accent-hover: #c41678;
+    --accent-secondary: #f472b6;
     
     --success: #10b981;
     --warning: #f59e0b;
@@ -21,7 +21,7 @@
     --danger-hover: #dc2626;
     
     /* User message bubble */
-    --user-bg: #6366f1;
+    --user-bg: #e91e8c;
     --user-text: #ffffff;
     
     /* Assistant message bubble */
@@ -1360,7 +1360,7 @@ body {
 }
 
 .badge-admin {
-    background-color: rgba(99, 102, 241, 0.2);
+    background-color: rgba(233, 30, 140, 0.2);
     color: var(--accent-primary);
 }
 

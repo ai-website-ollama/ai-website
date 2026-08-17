@@ -95,6 +95,17 @@ try {
   console.error('Failed to ensure users.settings column:', e.message || e);
 }
 
+// Ensure users table has an age column for age-based safety
+try {
+  const acols = db.prepare("PRAGMA table_info(users)").all();
+  if (!acols.find(c => c.name === 'age')) {
+    db.prepare('ALTER TABLE users ADD COLUMN age INTEGER DEFAULT 18').run();
+    console.log('Migrated users table: added age column');
+  }
+} catch (e) {
+  console.error('Failed to ensure users.age column:', e.message || e);
+}
+
 const minuteBuckets = new Map();
 
 // Middleware
@@ -162,6 +173,25 @@ function enforceMessageRateLimit(req, res, next) {
   next();
 }
 
+function getAgeBasedSystemPrompt(userAge, baseSystemPrompt) {
+  const age = Number(userAge) || 18;
+  if (age >= 18) return baseSystemPrompt;
+
+  const safetyPrefix = `IMPORTANT SAFETY RULES (user age: ${age}): You are interacting with a minor (age ${age}). You MUST strictly follow these additional rules:\n- Do NOT discuss: violence, weapons, drugs, alcohol, tobacco, sexual content, gambling, self-harm, or any adult topics\n- Do NOT use profanity or strong language\n- Keep all responses age-appropriate and educational\n- If a request touches on restricted topics, politely redirect to an appropriate alternative\n- Focus on positive, learning-oriented responses\n`;
+
+  if (age <= 5) {
+    return safetyPrefix + `\nThe user is a young child (age ${age}). Use very simple words, short sentences, fun and friendly tone. Only discuss age-appropriate topics like counting, colors, animals, stories, and simple learning. Do not discuss anything complex or potentially upsetting.`;
+  }
+  if (age <= 10) {
+    return safetyPrefix + `\nThe user is a child (age ${age}). Use clear, simple explanations. Focus on school subjects, homework help, fun facts, and age-appropriate coding help. Avoid complex or mature topics entirely.`;
+  }
+  if (age <= 14) {
+    return safetyPrefix + `\nThe user is a young teenager (age ${age}). You can discuss schoolwork, coding, science, math, and general education topics in more detail. Still avoid mature content. Keep tone encouraging and educational.`;
+  }
+  // ages 15-17
+  return safetyPrefix + `\nThe user is a teenager (age ${age}). You can discuss most educational topics including more advanced coding, science, and math. Avoid adult themes. Keep responses helpful and age-appropriate.`;
+}
+
 function ensureHarryUser() {
   const existingHarry = db.prepare('SELECT id, is_admin FROM users WHERE username = ?').get('harry');
   if (existingHarry) {
@@ -225,7 +255,7 @@ app.post('/api/register', async (req, res) => {
       return res.status(403).json({ error: 'Account creation is admin-only.' });
     }
 
-    const { username, email, password } = req.body;
+    const { username, email, password, isAdmin } = req.body;
     
     if (!username || !email || !password) {
       return res.status(400).json({ error: 'All fields required' });
@@ -240,8 +270,8 @@ app.post('/api/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    const stmt = db.prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)');
-    const info = stmt.run(username, email, hashedPassword);
+    const stmt = db.prepare('INSERT INTO users (username, email, password, is_admin) VALUES (?, ?, ?, ?)');
+    const info = stmt.run(username, email, hashedPassword, isAdmin ? 1 : 0);
     
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     
@@ -355,7 +385,7 @@ app.post('/api/admin/change-password', isAdmin, async (req, res) => {
 
 app.get('/api/admin/users', isAdmin, (req, res) => {
   try {
-    const users = db.prepare('SELECT id, username, email, is_admin, created_at FROM users').all();
+    const users = db.prepare('SELECT id, username, email, is_admin, age, created_at FROM users').all();
     res.json({ success: true, users });
   } catch (error) {
     console.error('Get users error:', error);
@@ -499,13 +529,17 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
     userMsgStmt.run(chatId, content);
     appendDbLog(req, 'message_user', { chars: content.length }, chatId);
     
+    // Get user age for age-based system prompt
+    const chatUser = db.prepare('SELECT age FROM users WHERE id = ?').get(req.session.user.id);
+    const chatUserAge = chatUser?.age;
+
     // Call Ollama API with per-chat system prompt (fallback to global)
     const response = await axios.post(
       `${OLLAMA_URL}/api/chat`,
       {
         model: chat.model || DEFAULT_MODEL,
         messages: [
-          { role: 'system', content: chat.system_prompt || SYSTEM_PROMPT },
+          { role: 'system', content: getAgeBasedSystemPrompt(chatUserAge, chat.system_prompt || SYSTEM_PROMPT) },
           { role: 'user', content: content }
         ],
         stream: false
@@ -667,8 +701,31 @@ app.post('/api/user/settings', isAuthenticated, (req, res) => {
   }
 });
 
+// Admin: set user age
+app.post('/api/admin/set-age', isAdmin, (req, res) => {
+  try {
+    const { userId, age } = req.body;
+    if (age !== null && (age < 0 || age > 150)) {
+      return res.status(400).json({ error: 'Invalid age' });
+    }
+    db.prepare('UPDATE users SET age = ? WHERE id = ?').run(age || 18, userId);
+    appendDbLog(req, 'user_age_set', { targetUserId: userId, age });
+    appendFileLog('info', 'user_age_set', { adminId: req.session.user.id, userId, age });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Set age error:', error);
+    res.status(500).json({ error: 'Failed to set age' });
+  }
+});
+
 // Session check
 app.get('/api/session', (req, res) => {
+  if (req.session.user) {
+    const fullUser = db.prepare('SELECT id, username, email, is_admin, age FROM users WHERE id = ?').get(req.session.user.id);
+    if (fullUser) {
+      req.session.user.age = fullUser.age;
+    }
+  }
   res.json({ success: true, user: req.session.user || null });
 });
 
