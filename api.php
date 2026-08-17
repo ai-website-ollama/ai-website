@@ -516,7 +516,7 @@ if (str_starts_with($uri, '/api/')) {
     if ($f['error'] !== UPLOAD_ERR_OK) out(['error'=>'Upload error: '.$f['error']], 400);
     if ($f['size'] > 10*1024*1024) out(['error'=>'File too large (max 10MB)'], 400);
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    $allowed = ['pdf','docx','pptx','xlsx','txt','csv','json','md','log','xml','html',
+    $allowed = ['pdf','docx','pptx','xlsx','odt','ods','odp','txt','csv','json','md','log','xml','html',
       'js','ts','jsx','tsx','py','java','cpp','c','h','cs','go','rs','rb','php',
       'swift','kt','css','sql','sh','ps1','bat','cmd','yaml','yml','toml','ini',
       'cfg','conf','env','r','scala','dart','lua','perl','pl','pm'];
@@ -526,7 +526,7 @@ if (str_starts_with($uri, '/api/')) {
     if ($ext === 'pdf') {
       exec('pdftotext '.escapeshellarg($f['tmp_name']).' - 2>/dev/null', $out, $ret);
       $text = $ret === 0 ? implode("\n", $out) : '[PDF parsing requires pdftotext - install poppler-utils]';
-    } elseif (in_array($ext, ['docx','pptx','xlsx'])) {
+    } elseif (in_array($ext, ['docx','pptx','xlsx','odt','ods','odp'])) {
       // Office XML (ZIP-based) formats
       $zip = new ZipArchive();
       if ($zip->open($f['tmp_name']) === true) {
@@ -559,6 +559,29 @@ if (str_starts_with($uri, '/api/')) {
               else $text .= $vidx . ' ';
             }
             $text .= "\n";
+          }
+        } elseif (in_array($ext, ['odt','ods','odp'])) {
+          // ODF (OpenDocument) — content.xml is in root
+          $contentXml = $zip->getFromName('content.xml');
+          if ($contentXml) {
+            if ($ext === 'ods') {
+              // Spread all cell values
+              preg_match_all('/<text:p[^>]*>(.*?)<\/text:p>/s', $contentXml, $pm);
+              $text = implode("\n", $pm[1] ?? []);
+              // Also grab cell values directly
+              preg_match_all('/<table:table-cell[^>]*>(.*?)<\/table:table-cell>/s', $contentXml, $cm);
+              foreach ($cm[1] ?? [] as $cell) {
+                $cellText = preg_replace('/<[^>]+>/', '', $cell);
+                if (trim($cellText)) $text .= ' ' . trim($cellText);
+              }
+            } else {
+              // odt / odp — text is in <text:p> tags
+              preg_match_all('/<text:p[^>]*>(.*?)<\/text:p>/s', $contentXml, $pm);
+              $text = implode("\n", $pm[1] ?? []);
+            }
+            $text = preg_replace('/<[^>]+>/', '', $text); // strip any nested tags
+          } else {
+            $text = '[No content found in ODF file]';
           }
         }
         $zip->close();
