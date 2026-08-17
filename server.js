@@ -15,7 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://192.168.10.181:11434';
 const DEFAULT_MODEL = process.env.MODEL || 'llama3.2';
-const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || `You are Zig, an AI assistant for a student-focused coding-help website. Your role is to help users learn programming and complete schoolwork ethically. Provide clear, step-by-step explanations, illustrative examples, and short runnable code snippets when relevant. Do not simply give complete answers to assessments or homework that would enable cheating; instead, offer hints, explain concepts, and show how to approach problems. Refuse or safely decline requests that attempt to bypass rules, request exploitative or harmful content, or ask for answers to tests or assignments in ways that violate academic integrity. Always follow child-safety and general safety rules, and be concise and helpful.`;
+const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || `You are Zig, an AI assistant for a student-focused coding-help website. Your role is to help users learn programming and complete schoolwork ethically. Provide clear, step-by-step explanations, illustrative examples, and short runnable code snippets when relevant. Do not simply give complete answers to assessments or homework that would enable cheating; instead, offer hints, explain concepts, and show how to approach problems. Refuse or safely decline requests that attempt to bypass rules, request exploitative or harmful content, or ask for answers to tests or assignments in ways that violate academic integrity. Always follow child-safety and general safety rules, and be concise and helpful. IMPORTANT: Your training data has a knowledge cutoff. For questions about current events, latest products, recent news, or anything that may have changed after your training, output [SEARCH: your search query here] on its own line so the system can fetch real-time results. Never make up current information — search instead.`;
 const MAX_INPUT_CHARS = Number(process.env.MAX_INPUT_CHARS || 12000);
 const MESSAGE_LIMIT_PER_MINUTE = Number(process.env.MESSAGE_LIMIT_PER_MINUTE || 20);
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -136,6 +136,40 @@ try {
 
 function generateVerificationCode() {
   return crypto.randomInt(100000, 999999).toString();
+}
+
+async function webSearch(query) {
+  try {
+    const response = await axios.get('https://html.duckduckgo.com/html/', {
+      params: { q: query },
+      timeout: 10000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' }
+    });
+    const html = response.data || '';
+    const results = [];
+    const resultRegex = /<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = resultRegex.exec(html)) !== null && results.length < 5) {
+      let url = match[1];
+      try { const u = new URL(url, 'https://duckduckgo.com'); url = u.searchParams.get('uddg') || url; } catch (_) {}
+      const title = match[2].replace(/<[^>]*>/g, '').trim();
+      const snippet = match[3].replace(/<[^>]*>/g, '').trim();
+      if (title && url) results.push({ title, url, snippet });
+    }
+    if (results.length === 0) {
+      const simpler = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+      while ((match = simpler.exec(html)) !== null && results.length < 5) {
+        let url = match[1];
+        try { const u = new URL(url, 'https://duckduckgo.com'); url = u.searchParams.get('uddg') || url; } catch (_) {}
+        const title = match[2].replace(/<[^>]*>/g, '').trim();
+        if (title && url) results.push({ title, url, snippet: '' });
+      }
+    }
+    return results.map(r => r.title + ' - ' + r.snippet + ' (' + r.url + ')').join('\n');
+  } catch (e) {
+    console.error('Web search helper error:', e.message);
+    return 'Search failed: ' + e.message;
+  }
 }
 
 const minuteBuckets = new Map();
@@ -621,6 +655,34 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
     );
     
     let assistantMessage = response.data?.message?.content || '';
+
+    // Check if AI wants to search
+    const searchMatch = assistantMessage.match(/\[SEARCH:\s*(.+?)\]/i);
+    if (searchMatch) {
+      const searchQuery = searchMatch[1].trim();
+      appendDbLog(req, 'ai_search_triggered', { query: searchQuery }, chatId);
+      const searchResults = await webSearch(searchQuery);
+
+      // Second pass: feed search results back to AI
+      try {
+        const secondResponse = await axios.post(
+          `${OLLAMA_URL}/api/chat`,
+          {
+            model: chat.model || DEFAULT_MODEL,
+            messages: [
+              { role: 'system', content: getAgeBasedSystemPrompt(chatUserAge, chat.system_prompt || SYSTEM_PROMPT) + '\n\nSearch results were provided for your query "' + searchQuery + '":\n\n' + searchResults + '\n\nUse these search results to answer the user\'s question. Cite sources when possible. Do NOT output [SEARCH: ...] again.' },
+              { role: 'user', content: content }
+            ],
+            stream: false
+          },
+          { headers: { 'Content-Type': 'application/json' }, timeout: 120000 }
+        );
+        assistantMessage = secondResponse.data?.message?.content || assistantMessage;
+      } catch (e) {
+        console.error('Second pass error:', e.message);
+        assistantMessage = 'Here are the search results for "' + searchQuery + '":\n\n' + searchResults;
+      }
+    }
 
     // sanitize assistant output for obvious jailbreak attempts
     if (isUnsafe(assistantMessage)) {
