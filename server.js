@@ -701,8 +701,8 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
           {
             model: chat.model || DEFAULT_MODEL,
             messages: [
-              { role: 'system', content: 'IMPORTANT: Today is ' + new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) + '. You previously searched for: "' + searchQuery + '". Here are the fresh search results:\n\n' + searchResults + '\n\nUse ONLY these search results to answer. The current year is ' + new Date().getFullYear() + '. Do NOT use old 2023/2024 phone names or info. Only mention phones/products that appear in these search results. Cite source URLs.' },
-              { role: 'user', content: content }
+              { role: 'system', content: 'You are a helpful assistant. A web search was performed. Below are the raw search results. Your ONLY job is to format these results into a clear, helpful answer for the user. Do NOT add any information that is not in the search results. Do NOT mention any product, phone, or item that does not appear in the results below. If the results mention iPhone 17, you say iPhone 17. If they mention Galaxy S26, you say Galaxy S26. Never substitute older model names.\n\nSEARCH RESULTS:\n' + searchResults },
+              { role: 'user', content: 'Based ONLY on these search results, answer this question: ' + content }
             ],
             stream: false
           },
@@ -711,7 +711,7 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
         assistantMessage = secondResponse.data?.message?.content || assistantMessage;
       } catch (e) {
         console.error('Second pass error:', e.message);
-        assistantMessage = 'Here are the search results for "' + searchQuery + '":\n\n' + searchResults;
+        assistantMessage = 'Here are the latest search results for "' + searchQuery + '":\n\n' + searchResults;
       }
     }
 
