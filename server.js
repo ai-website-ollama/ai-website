@@ -148,17 +148,19 @@ function generateVerificationCode() {
 }
 
 async function webSearch(query) {
+  const currentYear = new Date().getFullYear();
   try {
+    // Use DuckDuckGo with time filtering (past year)
     const response = await axios.get('https://html.duckduckgo.com/html/', {
-      params: { q: query },
+      params: { q: query, df: 'y', kl: 'us-en' },
       timeout: 10000,
-      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
     });
     const html = response.data || '';
     const results = [];
     const resultRegex = /<a rel="nofollow" class="result__a" href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
     let match;
-    while ((match = resultRegex.exec(html)) !== null && results.length < 5) {
+    while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
       let url = match[1];
       try { const u = new URL(url, 'https://duckduckgo.com'); url = u.searchParams.get('uddg') || url; } catch (_) {}
       const title = match[2].replace(/<[^>]*>/g, '').trim();
@@ -167,14 +169,34 @@ async function webSearch(query) {
     }
     if (results.length === 0) {
       const simpler = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-      while ((match = simpler.exec(html)) !== null && results.length < 5) {
+      while ((match = simpler.exec(html)) !== null && results.length < 8) {
         let url = match[1];
         try { const u = new URL(url, 'https://duckduckgo.com'); url = u.searchParams.get('uddg') || url; } catch (_) {}
         const title = match[2].replace(/<[^>]*>/g, '').trim();
         if (title && url) results.push({ title, url, snippet: '' });
       }
     }
-    return results.map(r => r.title + ' - ' + r.snippet + ' (' + r.url + ')').join('\n');
+
+    // Also try to fetch top result pages for richer content
+    const enriched = [];
+    for (const r of results.slice(0, 3)) {
+      try {
+        const pageRes = await axios.get(r.url, {
+          timeout: 5000,
+          headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' },
+          maxRedirects: 3
+        });
+        const text = (pageRes.data || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').substring(0, 2000);
+        enriched.push(r.title + '\nURL: ' + r.url + '\nContent: ' + (r.snippet || text.substring(0, 300)));
+      } catch (_) {
+        enriched.push(r.title + ' - ' + r.snippet + ' (' + r.url + ')');
+      }
+    }
+
+    if (enriched.length > 0) {
+      return 'Current year: ' + currentYear + '\n\nTop results:\n\n' + enriched.join('\n\n---\n\n');
+    }
+    return 'Current year: ' + currentYear + '\n\nResults:\n' + results.map(r => r.title + ' - ' + r.snippet + ' (' + r.url + ')').join('\n');
   } catch (e) {
     console.error('Web search helper error:', e.message);
     return 'Search failed: ' + e.message;
@@ -679,7 +701,7 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
           {
             model: chat.model || DEFAULT_MODEL,
             messages: [
-              { role: 'system', content: 'You are Zig. You previously asked to search for information. Here are the real-time search results for "' + searchQuery + '":\n\n' + searchResults + '\n\nYOU MUST use these search results to answer the user\'s question. Do NOT use your old training data. Do NOT make things up. Base your answer entirely on the search results above. Cite the source URLs when possible. If the search results don\'t have enough info, say so.' },
+              { role: 'system', content: 'IMPORTANT: Today is ' + new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' }) + '. You previously searched for: "' + searchQuery + '". Here are the fresh search results:\n\n' + searchResults + '\n\nUse ONLY these search results to answer. The current year is ' + new Date().getFullYear() + '. Do NOT use old 2023/2024 phone names or info. Only mention phones/products that appear in these search results. Cite source URLs.' },
               { role: 'user', content: content }
             ],
             stream: false
