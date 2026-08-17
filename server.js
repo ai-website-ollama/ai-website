@@ -5,6 +5,7 @@ const Database = require('better-sqlite3');
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -104,6 +105,30 @@ try {
   }
 } catch (e) {
   console.error('Failed to ensure users.age column:', e.message || e);
+}
+
+// Ensure users table has verified and verification_code columns
+try {
+  const vcols = db.prepare("PRAGMA table_info(users)").all();
+  if (!vcols.find(c => c.name === 'verified')) {
+    db.prepare('ALTER TABLE users ADD COLUMN verified INTEGER DEFAULT 0').run();
+    console.log('Migrated users table: added verified column');
+  }
+  if (!vcols.find(c => c.name === 'verification_code')) {
+    db.prepare('ALTER TABLE users ADD COLUMN verification_code TEXT').run();
+    console.log('Migrated users table: added verification_code column');
+  }
+} catch (e) {
+  console.error('Failed to ensure users verification columns:', e.message || e);
+}
+
+// Auto-verify harry admin
+try {
+  db.prepare('UPDATE users SET verified = 1 WHERE is_admin = 1 AND (verified IS NULL OR verified = 0)').run();
+} catch (_) {}
+
+function generateVerificationCode() {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 const minuteBuckets = new Map();
@@ -269,18 +294,13 @@ app.post('/api/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationCode = generateVerificationCode();
     
-    const stmt = db.prepare('INSERT INTO users (username, email, password, is_admin) VALUES (?, ?, ?, ?)');
-    const info = stmt.run(username, email, hashedPassword, isAdmin ? 1 : 0);
+    const stmt = db.prepare('INSERT INTO users (username, email, password, is_admin, verification_code) VALUES (?, ?, ?, ?, ?)');
+    const info = stmt.run(username, email, hashedPassword, isAdmin ? 1 : 0, verificationCode);
     
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     
-    req.session.user = {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      isAdmin: user.is_admin === 1
-    };
     appendDbLog(req, 'register_success', { username });
     appendFileLog('info', 'register_success', { username, userId: user.id, ip: requestIp(req) });
     
@@ -291,7 +311,8 @@ app.post('/api/register', async (req, res) => {
         username: user.username, 
         email: user.email, 
         isAdmin: user.is_admin === 1 
-      } 
+      },
+      verificationCode
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -385,7 +406,7 @@ app.post('/api/admin/change-password', isAdmin, async (req, res) => {
 
 app.get('/api/admin/users', isAdmin, (req, res) => {
   try {
-    const users = db.prepare('SELECT id, username, email, is_admin, age, created_at FROM users').all();
+    const users = db.prepare('SELECT id, username, email, is_admin, age, verified, verification_code, created_at FROM users').all();
     res.json({ success: true, users });
   } catch (error) {
     console.error('Get users error:', error);
@@ -504,6 +525,13 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
     if (!content || typeof content !== 'string') {
       return res.status(400).json({ error: 'Message content is required' });
     }
+
+    // Check if user is verified
+    const msgUser = db.prepare('SELECT verified FROM users WHERE id = ?').get(req.session.user.id);
+    if (msgUser && !msgUser.verified) {
+      return res.status(403).json({ error: 'Email not verified. Please enter your verification code.', needsVerification: true });
+    }
+
     if (content.length > MAX_INPUT_CHARS) {
       appendDbLog(req, 'message_too_large', { size: content.length, max: MAX_INPUT_CHARS }, chatId);
       return res.status(400).json({ error: `Message too long (max ${MAX_INPUT_CHARS} chars)` });
@@ -721,12 +749,52 @@ app.post('/api/admin/set-age', isAdmin, (req, res) => {
 // Session check
 app.get('/api/session', (req, res) => {
   if (req.session.user) {
-    const fullUser = db.prepare('SELECT id, username, email, is_admin, age FROM users WHERE id = ?').get(req.session.user.id);
+    const fullUser = db.prepare('SELECT id, username, email, is_admin, age, verified FROM users WHERE id = ?').get(req.session.user.id);
     if (fullUser) {
       req.session.user.age = fullUser.age;
+      req.session.user.verified = !!fullUser.verified;
     }
   }
   res.json({ success: true, user: req.session.user || null });
+});
+
+// Email verification
+app.post('/api/verify', isAuthenticated, (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Verification code required' });
+
+    const user = db.prepare('SELECT verification_code, verified FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.verified) return res.json({ success: true, message: 'Already verified' });
+
+    if (user.verification_code === code.trim()) {
+      db.prepare('UPDATE users SET verified = 1, verification_code = NULL WHERE id = ?').run(req.session.user.id);
+      req.session.user.verified = true;
+      appendDbLog(req, 'email_verified', { userId: req.session.user.id });
+      appendFileLog('info', 'email_verified', { userId: req.session.user.id });
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: 'Invalid verification code' });
+    }
+  } catch (error) {
+    console.error('Verify error:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+app.post('/api/admin/resend-verification', isAdmin, (req, res) => {
+  try {
+    const { userId } = req.body;
+    const newCode = generateVerificationCode();
+    db.prepare('UPDATE users SET verification_code = ? WHERE id = ?').run(newCode, userId);
+    appendDbLog(req, 'verification_resent', { targetUserId: userId });
+    appendFileLog('info', 'verification_resent', { adminId: req.session.user.id, userId });
+    res.json({ success: true, verificationCode: newCode });
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({ error: 'Failed to resend verification code' });
+  }
 });
 
 // Serve pages

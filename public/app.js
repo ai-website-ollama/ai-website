@@ -141,6 +141,16 @@ class ZigApp {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') this.closeAllModals();
         });
+        const submitVerifyBtn = document.getElementById('submitVerifyBtn');
+        if (submitVerifyBtn) {
+            submitVerifyBtn.addEventListener('click', () => this.submitVerification());
+        }
+        const verifyCodeInput = document.getElementById('verifyCodeInput');
+        if (verifyCodeInput) {
+            verifyCodeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); this.submitVerification(); }
+            });
+        }
     }
 
     setupSidebarResizer() {
@@ -199,7 +209,11 @@ class ZigApp {
                 this.updateUserInfo();
                 this.updateUI();
                 this.loadChats();
-                setTimeout(() => { if (this.messageInput) this.messageInput.focus(); }, 500);
+                if (data.user.verified === false) {
+                    this.showVerifyModal();
+                } else {
+                    setTimeout(() => { if (this.messageInput) this.messageInput.focus(); }, 500);
+                }
             } else {
                 window.location.href = '/login';
             }
@@ -653,6 +667,43 @@ class ZigApp {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    showVerifyModal() {
+        const modal = document.getElementById('verifyModal');
+        if (modal) modal.classList.add('active');
+        const input = document.getElementById('verifyCodeInput');
+        if (input) { input.value = ''; input.focus(); }
+        const err = document.getElementById('verifyError');
+        if (err) err.style.display = 'none';
+    }
+
+    async submitVerification() {
+        const input = document.getElementById('verifyCodeInput');
+        const err = document.getElementById('verifyError');
+        const code = input ? input.value.trim() : '';
+        if (!code) {
+            if (err) { err.textContent = 'Please enter a code'; err.style.display = 'block'; }
+            return;
+        }
+        try {
+            const res = await fetch('/api/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+            if (data.success) {
+                const modal = document.getElementById('verifyModal');
+                if (modal) modal.classList.remove('active');
+                this.user.verified = true;
+                setTimeout(() => { if (this.messageInput) this.messageInput.focus(); }, 300);
+            } else {
+                if (err) { err.textContent = data.error || 'Invalid code'; err.style.display = 'block'; }
+            }
+        } catch (error) {
+            if (err) { err.textContent = 'Verification failed'; err.style.display = 'block'; }
+        }
     }
 }
 

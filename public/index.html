@@ -249,6 +249,26 @@
         </div>
     </div>
 
+    <!-- Email Verification Modal -->
+    <div class="modal" id="verifyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Verify Your Email</h2>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-secondary);margin-bottom:16px;">Enter the 6-digit verification code from your admin to activate your account.</p>
+                <div class="form-group">
+                    <label for="verifyCodeInput">Verification Code</label>
+                    <input type="text" id="verifyCodeInput" placeholder="Enter 6-digit code" maxlength="6" style="font-size:24px;letter-spacing:8px;text-align:center;font-family:monospace;">
+                </div>
+                <p id="verifyError" style="color:var(--danger);font-size:13px;display:none;"></p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="submitVerifyBtn" style="width:100%;">Verify</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
