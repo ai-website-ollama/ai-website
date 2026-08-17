@@ -76,6 +76,15 @@ foreach ($cols as $table => $list) {
 }
 $db->exec("UPDATE users SET verified = 1 WHERE is_admin = 1 AND (verified IS NULL OR verified = 0)");
 
+// Fix Node.js bcrypt $2b$ hashes → PHP $2y$ (compatible with password_verify)
+$res = $db->query("SELECT id, password FROM users WHERE password LIKE '\$2b\$%'");
+while ($r = $res->fetchArray(SQLITE3_ASSOC)) {
+  $stmt = $db->prepare('UPDATE users SET password = :p WHERE id = :id');
+  $stmt->bindValue(':p', preg_replace('/^\$2b\$/', '$2y$', $r['password']));
+  $stmt->bindValue(':id', $r['id'], SQLITE3_INTEGER);
+  $stmt->execute();
+}
+
 // ── Helpers ──
 function ip(): string { return explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]; }
 function body(): array { $d = json_decode(file_get_contents('php://input'), true); return is_array($d) ? $d : []; }
@@ -461,13 +470,56 @@ if (str_starts_with($uri, '/api/')) {
     if (empty($_FILES['file'])) out(['error'=>'No file provided'], 400);
     $f = $_FILES['file'];
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-    $allowed = ['pdf','txt','csv','json','md','log','xml','html','js','py','java','cpp','c','h','css','sql','sh','yaml','yml','toml','ini','cfg','conf','env'];
+    $allowed = ['pdf','docx','pptx','xlsx','txt','csv','json','md','log','xml','html',
+      'js','ts','jsx','tsx','py','java','cpp','c','h','cs','go','rs','rb','php',
+      'swift','kt','css','sql','sh','ps1','bat','cmd','yaml','yml','toml','ini',
+      'cfg','conf','env','r','scala','dart','lua','perl','pl','pm'];
     if (!in_array($ext, $allowed)) out(['error'=>"File type not allowed: .$ext"], 400);
 
     $text = '';
     if ($ext === 'pdf') {
       exec('pdftotext '.escapeshellarg($f['tmp_name']).' - 2>/dev/null', $out, $ret);
       $text = $ret === 0 ? implode("\n", $out) : '[PDF parsing requires pdftotext - install poppler-utils]';
+    } elseif (in_array($ext, ['docx','pptx','xlsx'])) {
+      // Office XML (ZIP-based) formats
+      $zip = new ZipArchive();
+      if ($zip->open($f['tmp_name']) === true) {
+        if ($ext === 'docx') {
+          $xml = $zip->getFromName('word/document.xml');
+          $text = $xml ? preg_replace('/<[^>]+>/', ' ', $xml) : '';
+        } elseif ($ext === 'pptx') {
+          for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (preg_match('#^ppt/slides/slide\d+\.xml$#', $name)) {
+              $xml = $zip->getFromIndex($i);
+              $text .= preg_replace('/<[^>]+>/', ' ', $xml) . "\n";
+            }
+          }
+        } elseif ($ext === 'xlsx') {
+          // Extract shared strings + sheet data
+          $shared = [];
+          $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
+          if ($sharedXml) {
+            preg_match_all('/<t[^>]*>(.*?)<\/t>/s', $sharedXml, $sm);
+            $shared = $sm[1] ?? [];
+          }
+          for ($si = 1; $si <= 10; $si++) {
+            $sheetXml = $zip->getFromName("xl/worksheets/sheet$si.xml");
+            if (!$sheetXml) continue;
+            preg_match_all('/<c r="[A-Z]+\d+"[^>]*><v>(\d+)<\/v>/s', $sheetXml, $vm);
+            foreach ($vm[1] as $vidx) {
+              $idx = (int)$vidx;
+              if (isset($shared[$idx])) $text .= $shared[$idx] . ' ';
+              else $text .= $vidx . ' ';
+            }
+            $text .= "\n";
+          }
+        }
+        $zip->close();
+        $text = preg_replace('/\s+/', ' ', trim($text));
+      } else {
+        $text = '[Failed to open office document]';
+      }
     } else {
       $text = file_get_contents($f['tmp_name']);
     }

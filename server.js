@@ -613,12 +613,53 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf', '.txt', '.csv', '.json', '.md', '.log', '.xml', '.html', '.js', '.py', '.java', '.cpp', '.c', '.h', '.css', '.sql', '.sh', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env'];
+    const allowed = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.csv', '.json', '.md', '.log', '.xml', '.html',
+      '.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.cs', '.go', '.rs', '.rb', '.php',
+      '.swift', '.kt', '.css', '.sql', '.sh', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env',
+      '.r', '.scala', '.dart', '.lua', '.perl'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowed.includes(ext)) cb(null, true);
     else cb(new Error('File type not allowed: ' + ext));
   }
 });
+
+async function extractOfficeDocument(buffer, ext) {
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip(buffer);
+  let text = '';
+
+  if (ext === '.docx') {
+    const xml = zip.getEntry('word/document.xml');
+    if (xml) text = xml.getData().toString('utf8').replace(/<[^>]+>/g, ' ');
+  } else if (ext === '.pptx') {
+    const entries = zip.getEntries();
+    for (const entry of entries) {
+      if (/^ppt\/slides\/slide\d+\.xml$/.test(entry.entryName)) {
+        text += entry.getData().toString('utf8').replace(/<[^>]+>/g, ' ') + '\n';
+      }
+    }
+  } else if (ext === '.xlsx') {
+    const shared = [];
+    const sharedEntry = zip.getEntry('xl/sharedStrings.xml');
+    if (sharedEntry) {
+      const sxml = sharedEntry.getData().toString('utf8');
+      const sm = sxml.match(/<t[^>]*>(.*?)<\/t>/gs) || [];
+      for (const t of sm) shared.push(t.replace(/<[^>]+>/g, ''));
+    }
+    for (let si = 1; si <= 10; si++) {
+      const sheetEntry = zip.getEntry(`xl/worksheets/sheet${si}.xml`);
+      if (!sheetEntry) continue;
+      const sxml = sheetEntry.getData().toString('utf8');
+      const vm = sxml.match(/<v>(\d+)<\/v>/g) || [];
+      for (const v of vm) {
+        const idx = parseInt(v.replace(/<[^>]+>/g, ''));
+        text += (shared[idx] || idx) + ' ';
+      }
+      text += '\n';
+    }
+  }
+  return text.replace(/\s+/g, ' ').trim();
+}
 
 app.post('/api/upload', isAuthenticated, upload.single('file'), async (req, res) => {
   try {
@@ -628,6 +669,8 @@ app.post('/api/upload', isAuthenticated, upload.single('file'), async (req, res)
     if (ext === '.pdf') {
       const data = await pdfParse(req.file.buffer);
       text = data.text || '';
+    } else if (['.docx', '.pptx', '.xlsx'].includes(ext)) {
+      text = await extractOfficeDocument(req.file.buffer, ext);
     } else {
       text = req.file.buffer.toString('utf8');
     }
