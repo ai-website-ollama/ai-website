@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <title>Files - Zig</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .uploads-page { display:flex; flex-direction:column; height:100dvh; }
+        .uploads-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; background:var(--bg-secondary); border-bottom:1px solid var(--bg-tertiary); gap:12px; }
+        .uploads-header h1 { font-size:18px; font-weight:600; }
+        .uploads-header .back-btn { display:flex; align-items:center; gap:6px; color:var(--text-secondary); text-decoration:none; font-size:14px; padding:8px 12px; border-radius:var(--radius-md); transition:all var(--transition-fast); }
+        .uploads-header .back-btn:hover { color:var(--text-primary); background:var(--bg-hover); }
+        .uploads-header .back-btn svg { width:18px; height:18px; }
+        .uploads-body { flex:1; overflow-y:auto; padding:20px; }
+        .upload-zone { border:2px dashed var(--bg-hover); border-radius:var(--radius-lg); padding:40px 20px; text-align:center; color:var(--text-muted); cursor:pointer; transition:all var(--transition-fast); margin-bottom:24px; }
+        .upload-zone:hover { border-color:var(--accent-primary); color:var(--accent-primary); background:rgba(233,30,140,0.05); }
+        .upload-zone.dragging { border-color:var(--accent-primary); background:rgba(233,30,140,0.08); }
+        .upload-zone svg { width:40px; height:40px; margin-bottom:12px; opacity:0.5; }
+        .upload-zone p { font-size:14px; margin-bottom:4px; }
+        .upload-zone .sub { font-size:12px; color:var(--text-muted); }
+        .files-list { display:flex; flex-direction:column; gap:8px; }
+        .file-card { display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--bg-secondary); border:1px solid var(--bg-tertiary); border-radius:var(--radius-md); cursor:pointer; transition:all var(--transition-fast); }
+        .file-card:hover { border-color:var(--accent-primary); background:var(--bg-hover); }
+        .file-icon { width:40px; height:40px; border-radius:var(--radius-md); background:var(--bg-tertiary); display:flex; align-items:center; justify-content:center; color:var(--accent-primary); flex-shrink:0; font-size:12px; font-weight:700; text-transform:uppercase; }
+        .file-info { flex:1; min-width:0; }
+        .file-name { font-size:14px; font-weight:500; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .file-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+        .file-actions { display:flex; gap:4px; flex-shrink:0; }
+        .file-delete { width:32px; height:32px; border-radius:var(--radius-md); background:none; color:var(--text-muted); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all var(--transition-fast); }
+        .file-delete:hover { color:var(--danger); background:rgba(239,68,68,0.1); }
+        .file-delete svg { width:16px; height:16px; }
+        .no-files { text-align:center; padding:60px 20px; color:var(--text-muted); }
+        .no-files svg { width:48px; height:48px; margin-bottom:16px; opacity:0.3; }
+        .file-viewer { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:500; align-items:center; justify-content:center; padding:20px; }
+        .file-viewer.active { display:flex; }
+        .file-viewer-content { background:var(--bg-secondary); border-radius:var(--radius-lg); width:100%; max-width:700px; max-height:85dvh; display:flex; flex-direction:column; overflow:hidden; }
+        .file-viewer-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--bg-tertiary); }
+        .file-viewer-header h3 { font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+        .file-viewer-body { flex:1; overflow-y:auto; padding:16px; font-family:'SF Mono','Monaco','Courier New',monospace; font-size:13px; line-height:1.6; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
+        .file-viewer-actions { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--bg-tertiary); }
+        .upload-progress { display:none; margin-bottom:16px; padding:12px; background:var(--bg-secondary); border-radius:var(--radius-md); }
+        .upload-progress.active { display:block; }
+        .upload-progress-text { font-size:13px; color:var(--text-secondary); }
+        @media (max-width:768px) {
+            .uploads-body { padding:12px; }
+            .uploads-header { padding:12px 16px; }
+            .file-card { padding:12px; }
+        }
+    </style>
+</head>
+<body style="background:var(--bg-primary);">
+    <div class="uploads-page">
+        <div class="uploads-header">
+            <a href="/" class="back-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                Back to chat
+            </a>
+            <h1>My Files</h1>
+        </div>
+        <div class="uploads-body">
+            <div class="upload-zone" id="uploadZone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p>Click to upload or drag & drop</p>
+                <div class="sub">PDF, DOCX, TXT, code files, and more (max 10MB)</div>
+                <input type="file" id="fileInput" style="display:none" accept=".pdf,.docx,.pptx,.xlsx,.txt,.csv,.json,.md,.log,.xml,.html,.js,.ts,.jsx,.tsx,.py,.java,.cpp,.c,.h,.cs,.go,.rs,.rb,.php,.swift,.kt,.css,.sql,.sh,.ps1,.bat,.cmd,.yaml,.yml,.toml,.ini,.r,.scala,.dart,.lua,.perl">
+            </div>
+            <div class="upload-progress" id="uploadProgress">
+                <div class="upload-progress-text" id="uploadProgressText">Uploading...</div>
+            </div>
+            <div class="files-list" id="filesList"></div>
+            <div class="no-files" id="noFiles" style="display:none">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <polyline points="13 2 13 9 20 9"/>
+                </svg>
+                <p>No files uploaded yet</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="file-viewer" id="fileViewer">
+        <div class="file-viewer-content">
+            <div class="file-viewer-header">
+                <h3 id="viewerFilename">file.txt</h3>
+                <button class="close-modal" onclick="closeViewer()" style="flex-shrink:0;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="file-viewer-body" id="viewerBody"></div>
+            <div class="file-viewer-actions">
+                <button class="btn btn-secondary" onclick="copyFileText()" style="font-size:13px;">Copy text</button>
+                <button class="btn btn-danger" id="viewerDeleteBtn" style="font-size:13px;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let csrfToken = null;
+        let currentViewerId = null;
+        let allFiles = [];
+
+        async function init() {
+            try {
+                const res = await fetch('/api/session');
+                const data = await res.json();
+                if (!data.success || !data.user) { window.location.href = '/login'; return; }
+                csrfToken = data.csrfToken || null;
+            } catch (e) { window.location.href = '/login'; return; }
+            loadFiles();
+            setupDragDrop();
+        }
+
+        function csrfH() { return csrfToken ? { 'X-CSRF-Token': csrfToken } : {}; }
+
+        async function loadFiles() {
+            try {
+                const res = await fetch('/api/uploads');
+                const data = await res.json();
+                if (data.success) {
+                    allFiles = data.files || [];
+                    renderFiles();
+                }
+            } catch (e) { console.error('Load files error:', e); }
+        }
+
+        function renderFiles() {
+            const list = document.getElementById('filesList');
+            const empty = document.getElementById('noFiles');
+            if (!allFiles.length) {
+                list.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+            list.innerHTML = allFiles.map(f => {
+                const ext = (f.ext || '?').toUpperCase();
+                const size = formatSize(f.size || 0);
+                const date = new Date(f.created_at).toLocaleDateString();
+                return '<div class="file-card" onclick="viewFile('+f.id+')">' +
+                    '<div class="file-icon">'+ext+'</div>' +
+                    '<div class="file-info">' +
+                        '<div class="file-name">'+esc(f.filename)+'</div>' +
+                        '<div class="file-meta">'+size+' &middot; '+date+'</div>' +
+                    '</div>' +
+                    '<button class="file-delete" onclick="event.stopPropagation();deleteFile('+f.id+')" title="Delete">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                    '</button>' +
+                '</div>';
+            }).join('');
+        }
+
+        async function viewFile(id) {
+            try {
+                const res = await fetch('/api/uploads/' + id);
+                const data = await res.json();
+                if (data.success && data.file) {
+                    currentViewerId = id;
+                    document.getElementById('viewerFilename').textContent = data.file.filename;
+                    document.getElementById('viewerBody').textContent = data.file.text_content || '[No text content]';
+                    document.getElementById('viewerDeleteBtn').onclick = () => { deleteFile(id); closeViewer(); };
+                    document.getElementById('fileViewer').classList.add('active');
+                }
+            } catch (e) { alert('Failed to load file'); }
+        }
+
+        function closeViewer() {
+            document.getElementById('fileViewer').classList.remove('active');
+            currentViewerId = null;
+        }
+
+        async function deleteFile(id) {
+            if (!confirm('Delete this file?')) return;
+            try {
+                await fetch('/api/uploads/' + id, { method: 'DELETE', headers: csrfH() });
+                loadFiles();
+            } catch (e) { alert('Failed to delete'); }
+        }
+
+        async function uploadFile(file) {
+            const progress = document.getElementById('uploadProgress');
+            const progressText = document.getElementById('uploadProgressText');
+            progress.classList.add('active');
+            progressText.textContent = 'Uploading ' + file.name + '...';
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const res = await fetch('/api/upload', { method: 'POST', headers: csrfH(), body: fd });
+                const data = await res.json();
+                if (data.success) {
+                    progressText.textContent = 'Uploaded! ' + data.chars + ' chars extracted.';
+                    loadFiles();
+                } else {
+                    progressText.textContent = 'Error: ' + (data.error || 'Failed');
+                }
+            } catch (e) {
+                progressText.textContent = 'Upload failed';
+            }
+            setTimeout(() => { progress.classList.remove('active'); }, 3000);
+        }
+
+        function setupDragDrop() {
+            const zone = document.getElementById('uploadZone');
+            const input = document.getElementById('fileInput');
+            zone.addEventListener('click', () => input.click());
+            input.addEventListener('change', (e) => { if (e.target.files[0]) uploadFile(e.target.files[0]); e.target.value = ''; });
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragging'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragging');
+                if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+            });
+        }
+
+        function copyFileText() {
+            const text = document.getElementById('viewerBody').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.file-viewer-actions .btn-secondary');
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy text'; }, 1200);
+            });
+        }
+
+        function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+        function formatSize(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b/1024).toFixed(1) + ' KB'; return (b/1048576).toFixed(1) + ' MB'; }
+
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeViewer(); });
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

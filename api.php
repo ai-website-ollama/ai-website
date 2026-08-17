@@ -63,6 +63,13 @@ $db->exec("CREATE TABLE IF NOT EXISTS app_logs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );");
 $db->exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);");
+$db->exec("CREATE TABLE IF NOT EXISTS uploads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+  filename TEXT NOT NULL, ext TEXT, size INTEGER, mime_type TEXT,
+  text_content TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);");
+$db->exec("CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);");
 
 // Migrations
 $cols = ['chats' => ['system_prompt'], 'users' => ['settings','age','verified','verification_code','session_version']];
@@ -564,8 +571,44 @@ if (str_starts_with($uri, '/api/')) {
     }
     $MAX = 30000;
     if (strlen($text) > $MAX) $text = mb_substr($text, 0, $MAX)."\n\n[...truncated — file exceeded $MAX characters]";
-    db_log($db,'file_upload',['filename'=>$f['name'],'size'=>$f['size'],'ext'=>$ext,'chars'=>strlen($text)]);
-    out(['success'=>true,'filename'=>$f['name'],'text'=>$text,'chars'=>strlen($text)]);
+    // Store in DB
+    $mime = $f['type'] ?? 'application/octet-stream';
+    $s = $db->prepare('INSERT INTO uploads (user_id,filename,ext,size,mime_type,text_content) VALUES(:uid,:fn,:ext,:sz,:mt,:tc)');
+    $s->bindValue(':uid', $_SESSION['user']['id'], SQLITE3_INTEGER);
+    $s->bindValue(':fn', $f['name']); $s->bindValue(':ext', $ext);
+    $s->bindValue(':sz', $f['size'], SQLITE3_INTEGER); $s->bindValue(':mt', $mime);
+    $s->bindValue(':tc', $text); $s->execute();
+    $uploadId = $db->lastInsertRowID();
+    db_log($db,'file_upload',['filename'=>$f['name'],'size'=>$f['size'],'ext'=>$ext,'chars'=>strlen($text),'uploadId'=>$uploadId]);
+    out(['success'=>true,'id'=>$uploadId,'filename'=>$f['name'],'text'=>$text,'chars'=>strlen($text)]);
+  }
+
+  // ── GET /api/uploads (list user's uploads) ──
+  if ($method==='GET' && $uri==='/api/uploads') {
+    require_auth();
+    $res = $db->query("SELECT id,filename,ext,size,mime_type,created_at FROM uploads WHERE user_id=".$_SESSION['user']['id']." ORDER BY created_at DESC");
+    $files = []; while ($r = $res->fetchArray(SQLITE3_ASSOC)) $files[] = $r;
+    out(['success'=>true,'files'=>$files]);
+  }
+
+  // ── GET /api/uploads/:id (get single upload text) ──
+  if ($method==='GET' && preg_match('#^/api/uploads/(\d+)$#', $uri, $m)) {
+    require_auth();
+    $id = (int)$m[1];
+    $file = $db->querySingle("SELECT * FROM uploads WHERE id=$id AND user_id=".$_SESSION['user']['id'], true);
+    if (!$file) out(['error'=>'File not found'], 404);
+    out(['success'=>true,'file'=>$file]);
+  }
+
+  // ── DELETE /api/uploads/:id ──
+  if ($method==='DELETE' && preg_match('#^/api/uploads/(\d+)$#', $uri, $m)) {
+    require_auth(); require_csrf();
+    $id = (int)$m[1];
+    $file = $db->querySingle("SELECT id FROM uploads WHERE id=$id AND user_id=".$_SESSION['user']['id'], true);
+    if (!$file) out(['error'=>'File not found'], 404);
+    $db->exec("DELETE FROM uploads WHERE id=$id");
+    db_log($db,'file_deleted',['uploadId'=>$id]);
+    out(['success'=>true,'message'=>'File deleted']);
   }
 
   // ── Search ──
@@ -716,6 +759,10 @@ if ($uri === '/login' || $uri === '/login.php') {
   readfile(__DIR__.'/public/login.html'); exit;
 }
 if ($uri === '/signup') { header('Location: /login'); exit; }
+if ($uri === '/uploads') {
+  require_auth();
+  readfile(__DIR__.'/public/uploads.html'); exit;
+}
 if ($uri === '/admin') {
   require_admin();
   readfile(__DIR__.'/public/admin.html'); exit;

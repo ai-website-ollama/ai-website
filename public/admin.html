@@ -16,7 +16,9 @@
         .log-type.error { background:rgba(245,158,11,0.15);color:var(--warning); }
         .log-type.admin { background:rgba(99,102,241,0.15);color:var(--accent-secondary); }
         .log-type.other { background:var(--bg-tertiary);color:var(--text-secondary); }
-        .log-detail { color:var(--text-secondary);font-size:12px;flex:1;word-break:break-word; }
+        .log-detail { color:var(--text-secondary);font-size:12px;flex:1;word-break:break-word;min-width:0; }
+        .log-ua { color:var(--text-muted);font-size:11px;white-space:nowrap;min-width:180px; }
+        .log-ip { color:var(--accent-primary);font-size:11px;white-space:nowrap;min-width:100px;font-family:monospace; }
         .stats-row { display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px; }
         .announce-box { width:100%;min-height:100px;padding:12px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--bg-hover);border-radius:var(--radius-md);font-family:inherit;font-size:14px;resize:vertical; }
         .announce-box:focus { outline:none;border-color:var(--accent-primary); }
@@ -300,6 +302,25 @@
 
         function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 
+        function parseUA(ua) {
+            if (!ua) return { browser:'?', os:'?', device:'?' };
+            let browser = 'Other', os = 'Other', device = 'Desktop';
+            if (ua.includes('Firefox/')) browser = 'Firefox ' + (ua.match(/Firefox\/([\d.]+)/)||[])[1];
+            else if (ua.includes('Edg/')) browser = 'Edge ' + (ua.match(/Edg\/([\d.]+)/)||[])[1];
+            else if (ua.includes('Chrome/')) browser = 'Chrome ' + (ua.match(/Chrome\/([\d.]+)/)||[])[1];
+            else if (ua.includes('Safari/') && ua.includes('Version/')) browser = 'Safari ' + (ua.match(/Version\/([\d.]+)/)||[])[1];
+            if (ua.includes('Windows')) os = 'Windows';
+            else if (ua.includes('Mac OS X')) os = 'macOS';
+            else if (ua.includes('Linux') && !ua.includes('Android')) os = 'Linux';
+            else if (ua.includes('Android')) os = 'Android';
+            else if (ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+            if (ua.includes('iPhone')) device = 'iPhone';
+            else if (ua.includes('iPad')) device = 'iPad';
+            else if (ua.includes('Android')) device = 'Android';
+            else if (ua.includes('Windows')) device = 'PC';
+            return { browser, os, device };
+        }
+
         function showSection(name) {
             document.querySelectorAll('.admin-nav-item').forEach(i => i.classList.remove('active'));
             document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
@@ -433,10 +454,17 @@
                     if (l.event_type.includes('login')) type = 'login';
                     else if (l.event_type.includes('message')) type = 'message';
                     else if (l.event_type.includes('error') || l.event_type.includes('rate')) type = 'error';
-                    else if (l.event_type.includes('admin') || l.event_type.includes('register') || l.event_type.includes('age') || l.event_type.includes('verify') || l.event_type.includes('announce') || l.event_type.includes('settings')) type = 'admin';
+                    else if (l.event_type.includes('admin') || l.event_type.includes('register') || l.event_type.includes('age') || l.event_type.includes('verify') || l.event_type.includes('announce') || l.event_type.includes('settings') || l.event_type.includes('upload')) type = 'admin';
                     let detail = '';
                     try { const d = JSON.parse(l.details); detail = Object.entries(d).map(([k,v]) => k+':'+v).join(', '); } catch(e) { detail = l.details || ''; }
-                    return '<div class="log-entry" data-type="'+l.event_type+'"><span class="log-ts">'+new Date(l.created_at).toLocaleString()+'</span><span class="log-type '+type+'">'+l.event_type+'</span><span class="log-detail">'+esc(l.username||'system')+' &middot; '+esc(detail)+'</span></div>';
+                    const ua = parseUA(l.user_agent);
+                    return '<div class="log-entry" data-type="'+l.event_type+'">' +
+                        '<span class="log-ts">'+new Date(l.created_at).toLocaleString()+'</span>' +
+                        '<span class="log-type '+type+'">'+l.event_type+'</span>' +
+                        '<span class="log-detail">'+esc(l.username||'system')+' &middot; '+esc(detail)+'</span>' +
+                        '<span class="log-ua" title="'+esc(l.user_agent||'')+'">'+esc(ua.browser)+' &middot; '+esc(ua.os)+' ('+esc(ua.device)+')</span>' +
+                        '<span class="log-ip">'+esc(l.ip||'')+'</span>' +
+                    '</div>';
                 }).join('');
                 if (logsOffset === 0 && !html) el.innerHTML = '<div class="empty-state">No logs found</div>';
                 else el.innerHTML += html;
