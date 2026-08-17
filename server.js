@@ -267,8 +267,8 @@ function isUnsafe(text) {
   const s = String(text).toLowerCase();
   const banned = [
     'ignore previous', 'ignore instructions', 'jailbreak', 'bypass', 'bypass safety',
-    'role: system', 'become my', 'become', 'break the rules', 'follow my instructions even if',
-    'override safety', 'sudo', 'exploit', 'disable safety'
+    'role: system', 'become my', 'break the rules', 'follow my instructions even if',
+    'override safety', 'disable safety'
   ];
   return banned.some(b => s.includes(b));
 }
@@ -581,8 +581,8 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
       return res.status(404).json({ error: 'Chat not found' });
     }
     
-    // Basic safety check on user content
-    if (isUnsafe(content)) {
+    // Basic safety check on user content (skip for file uploads)
+    if (!content.startsWith('[File:') && isUnsafe(content)) {
       return res.status(400).json({ error: 'Message contains unsafe or disallowed patterns.' });
     }
 
