@@ -49,6 +49,7 @@ class ZigApp {
         this.currentSystemPrompt = null;
         this.uploadedText = null;
         this.uploadedFilename = null;
+        this.csrfToken = null;
 
         this.init();
     }
@@ -91,6 +92,16 @@ class ZigApp {
         }
         if (this.logoutBtn) {
             this.logoutBtn.addEventListener('click', () => this.logout());
+        }
+        const deleteAllBtn = document.getElementById('deleteAllChatsBtn');
+        if (deleteAllBtn) {
+            deleteAllBtn.addEventListener('click', async () => {
+                if (!confirm('Delete ALL your chats? This cannot be undone.')) return;
+                try {
+                    const res = await fetch('/api/chats', { method: 'DELETE', headers: this.csrfHeaders() });
+                    if (res.ok) location.reload();
+                } catch (e) {}
+            });
         }
         if (this.deleteChatBtn) {
             this.deleteChatBtn.addEventListener('click', () => this.confirmDeleteChat());
@@ -231,6 +242,7 @@ class ZigApp {
             const data = await response.json();
             if (data.success && data.user) {
                 this.user = data.user;
+                this.csrfToken = data.csrfToken || null;
                 this.updateUserInfo();
                 this.updateUI();
                 this.loadChats();
@@ -310,7 +322,7 @@ class ZigApp {
         try {
             const response = await fetch('/api/chats', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...this.csrfHeaders() },
                 body: JSON.stringify({ model: this.currentModel })
             });
             const data = await response.json();
@@ -460,7 +472,7 @@ class ZigApp {
         try {
             const response = await fetch('/api/chats/' + this.currentChatId + '/messages', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...this.csrfHeaders() },
                 body: JSON.stringify({ content: fullContent })
             });
             const data = await response.json();
@@ -494,7 +506,7 @@ class ZigApp {
         if (!this.currentChatId) return;
         this.showLoading();
         try {
-            const response = await fetch('/api/chats/' + this.currentChatId, { method: 'DELETE' });
+            const response = await fetch('/api/chats/' + this.currentChatId, { method: 'DELETE', headers: this.csrfHeaders() });
             const data = await response.json();
             if (data.success) {
                 this.currentChatId = null;
@@ -582,7 +594,7 @@ class ZigApp {
         try {
             const res = await fetch('/api/user/settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...this.csrfHeaders() },
                 body: JSON.stringify({ settings })
             });
             const data = await res.json();
@@ -658,7 +670,7 @@ class ZigApp {
     async logout() {
         this.showLoading();
         try {
-            const response = await fetch('/api/logout', { method: 'POST' });
+            const response = await fetch('/api/logout', { method: 'POST', headers: this.csrfHeaders() });
             if (response.ok) {
                 this.user = null;
                 this.currentChatId = null;
@@ -707,7 +719,7 @@ class ZigApp {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            const res = await fetch('/api/upload', { method: 'POST', headers: this.csrfHeaders(), body: formData });
             const data = await res.json();
             if (data.success) {
                 this.uploadedText = data.text;
@@ -743,7 +755,7 @@ class ZigApp {
         try {
             const res = await fetch('/api/user/change-password', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...this.csrfHeaders() },
                 body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw, code })
             });
             const data = await res.json();
@@ -817,6 +829,10 @@ class ZigApp {
             .replace(/'/g, '&#039;');
     }
 
+    csrfHeaders() {
+        return this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : {};
+    }
+
     showVerifyModal() {
         const modal = document.getElementById('verifyModal');
         if (modal) modal.classList.add('active');
@@ -837,7 +853,7 @@ class ZigApp {
         try {
             const res = await fetch('/api/verify', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...this.csrfHeaders() },
                 body: JSON.stringify({ code })
             });
             const data = await res.json();

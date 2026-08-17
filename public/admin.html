@@ -270,8 +270,19 @@
         let currentUserId = null;
         let logsOffset = 0;
         const LOGS_PER_PAGE = 100;
+        let adminCsrfToken = null;
+
+        async function initCsrf() {
+            try {
+                const res = await fetch('/api/session');
+                const data = await res.json();
+                adminCsrfToken = data.csrfToken || null;
+            } catch (e) {}
+        }
+        function csrfH() { return adminCsrfToken ? { 'X-CSRF-Token': adminCsrfToken } : {}; }
 
         document.addEventListener('DOMContentLoaded', () => {
+            initCsrf();
             loadDashboard();
             document.querySelectorAll('.admin-nav-item').forEach(item => {
                 item.addEventListener('click', e => {
@@ -401,7 +412,7 @@
         async function deleteAdminChat(chatId) {
             if (!confirm('Delete this chat?')) return;
             try {
-                await fetch('/api/admin/chats-all/' + chatId, { method: 'DELETE' });
+                await fetch('/api/admin/chats-all/' + chatId, { method: 'DELETE', headers: csrfH() });
                 loadAllChats();
             } catch (e) { alert('Failed'); }
         }
@@ -443,7 +454,7 @@
             if (!confirm('Send this announcement to all users?')) return;
             try {
                 const res = await fetch('/api/admin/announce', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...csrfH() },
                     body: JSON.stringify({ message: msg })
                 });
                 const data = await res.json();
@@ -473,12 +484,12 @@
             if (password.length < 8) { alert('Password min 8 chars'); return; }
             try {
                 const res = await fetch('/api/register', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...csrfH() },
                     body: JSON.stringify({ username, email, password, isAdmin })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    if (age !== 18) await fetch('/api/admin/set-age', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId: data.user.id, age }) });
+                    if (age !== 18) await fetch('/api/admin/set-age', { method: 'POST', headers: {'Content-Type':'application/json', ...csrfH()}, body: JSON.stringify({ userId: data.user.id, age }) });
                     closeModal('createUserModal');
                     const code = data.verificationCode || 'unknown';
                     alert('User created! Verification code: ' + code + '\n\nShare this with the user.');
@@ -497,7 +508,7 @@
         async function confirmSetAge() {
             const age = parseInt(document.getElementById('setAgeValue').value);
             if (isNaN(age) || age < 0 || age > 150) { alert('Invalid age'); return; }
-            await fetch('/api/admin/set-age', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId: currentUserId, age }) });
+            await fetch('/api/admin/set-age', { method:'POST', headers:{'Content-Type':'application/json', ...csrfH()}, body: JSON.stringify({ userId: currentUserId, age }) });
             closeModal('setAgeModal');
             loadUsers();
         }
@@ -512,7 +523,7 @@
         async function confirmChangePassword() {
             const pw = document.getElementById('newPassword').value;
             if (!pw || pw.length < 8) { alert('Min 8 chars'); return; }
-            const res = await fetch('/api/admin/change-password', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId: currentUserId, newPassword: pw }) });
+            const res = await fetch('/api/admin/change-password', { method:'POST', headers:{'Content-Type':'application/json', ...csrfH()}, body: JSON.stringify({ userId: currentUserId, newPassword: pw }) });
             if (res.ok) { closeModal('changePasswordModal'); alert('Password changed'); }
         }
 
@@ -523,13 +534,13 @@
         }
 
         async function confirmDeleteUser() {
-            const res = await fetch('/api/admin/users/' + currentUserId, { method:'DELETE' });
+            const res = await fetch('/api/admin/users/' + currentUserId, { method:'DELETE', headers: csrfH() });
             if (res.ok) { closeModal('deleteUserModal'); loadUsers(); }
         }
 
         async function resendVerification(userId, username) {
             try {
-                const res = await fetch('/api/admin/resend-verification', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId }) });
+                const res = await fetch('/api/admin/resend-verification', { method:'POST', headers:{'Content-Type':'application/json', ...csrfH()}, body: JSON.stringify({ userId }) });
                 const data = await res.json();
                 if (data.success) { alert('New code for ' + username + ': ' + data.verificationCode); loadUsers(); }
                 else alert(data.error || 'Failed');

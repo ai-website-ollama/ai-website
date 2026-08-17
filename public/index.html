@@ -274,7 +274,7 @@
                 <!-- Danger Zone -->
                 <div>
                     <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:var(--danger);margin-bottom:10px;">Danger Zone</h3>
-                    <button class="btn btn-danger" onclick="if(confirm('Delete ALL your chats? This cannot be undone.')){fetch('/api/chats',{method:'DELETE'}).then(()=>location.reload())}" style="font-size:13px;">Delete All Chats</button>
+                    <button class="btn btn-danger" id="deleteAllChatsBtn" style="font-size:13px;">Delete All Chats</button>
                 </div>
             </div>
             <div class="modal-actions">

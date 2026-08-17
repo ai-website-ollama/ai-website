@@ -65,7 +65,7 @@ $db->exec("CREATE TABLE IF NOT EXISTS app_logs (
 $db->exec("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);");
 
 // Migrations
-$cols = ['chats' => ['system_prompt'], 'users' => ['settings','age','verified','verification_code']];
+$cols = ['chats' => ['system_prompt'], 'users' => ['settings','age','verified','verification_code','session_version']];
 foreach ($cols as $table => $list) {
   $existing = [];
   $res = $db->query("PRAGMA table_info($table)");
@@ -194,8 +194,22 @@ try {
 
 // ── Session ──
 session_name('ZIGSESSID');
-session_set_cookie_params(['lifetime'=>30*24*3600,'path'=>'/','httponly'=>true,'samesite'=>'Lax','secure'=>false]);
+$isSecure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
+session_set_cookie_params(['lifetime'=>30*24*3600,'path'=>'/','httponly'=>true,'samesite'=>'Strict','secure'=>$isSecure]);
 session_start();
+
+// CSRF token
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+function csrf_token(): string { return $_SESSION['csrf_token'] ?? ''; }
+function require_csrf(): void {
+  if ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    $tok = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $GLOBALS['b']['_csrf'] ?? $_POST['_csrf'] ?? '';
+    if (!hash_equals(csrf_token(), $tok)) out(['error'=>'Invalid CSRF token'], 403);
+  }
+}
+function require_csrf_if_auth(): void {
+  if (!empty($_SESSION['user']['id'])) require_csrf();
+}
 
 // ── Rate limiter (DB-backed, per-minute sliding window) ──
 function rate_ok(SQLite3 $db): bool {
@@ -213,6 +227,12 @@ function rate_ok(SQLite3 $db): bool {
   return true;
 }
 
+// ── Security headers ──
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'");
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: DENY");
+header("Referrer-Policy: strict-origin-when-cross-origin");
+
 // ── Router ──
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
@@ -222,7 +242,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/register ──
   if ($method==='POST' && $uri==='/api/register') {
-    require_admin();
+    require_admin(); require_csrf();
     $u = trim($b['username']??''); $e = trim($b['email']??''); $p = $b['password']??''; $adm = !empty($b['isAdmin']);
     if (!$u || !$e || !$p) out(['error'=>'All fields required'], 400);
     if ($db->querySingle("SELECT id FROM users WHERE username='".$db->escapeString($u)."' OR email='".$db->escapeString($e)."'")) out(['error'=>'Username or email already exists'], 400);
@@ -237,9 +257,17 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/login ──
   if ($method==='POST' && $uri==='/api/login') {
+    // Brute force protection: max 10 failed attempts per IP per 15 minutes
+    $lip = ip();
+    $now = time();
+    $failKey = "loginfail_$lip";
+    $failCnt = (int)$db->querySingle("SELECT COUNT(*) FROM app_logs WHERE event_type='login_failed' AND ip='".$db->escapeString($lip)."' AND created_at>datetime('now','-15 minutes')");
+    if ($failCnt >= 10) { db_log($db,'login_blocked',['ip'=>$lip]); out(['error'=>'Too many failed attempts. Try again in 15 minutes.'], 429); }
     $u = $b['username']??''; $p = $b['password']??'';
     $row = $db->querySingle("SELECT * FROM users WHERE username='".$db->escapeString($u)."'", true);
     if (!$row || !password_verify($p, $row['password'])) { db_log($db,'login_failed',['username'=>$u]); out(['error'=>'Invalid credentials'], 401); }
+    // Regenerate session to prevent session fixation
+    session_regenerate_id(true);
     $_SESSION['user'] = ['id'=>$row['id'],'username'=>$row['username'],'email'=>$row['email'],'isAdmin'=>(bool)$row['is_admin']];
     db_log($db,'login_success',['username'=>$u]);
     out(['success'=>true,'user'=>['id'=>$row['id'],'username'=>$row['username'],'email'=>$row['email'],'isAdmin'=>(bool)$row['is_admin']]]);
@@ -257,12 +285,16 @@ if (str_starts_with($uri, '/api/')) {
       $full = $db->querySingle("SELECT id,username,email,is_admin,age,verified FROM users WHERE id=".$_SESSION['user']['id'], true);
       if ($full) { $_SESSION['user']['age']=$full['age']; $_SESSION['user']['verified']=(bool)$full['verified']; }
     }
-    out(['success'=>true,'user'=>$_SESSION['user'] ?? null]);
+    out(['success'=>true,'user'=>$_SESSION['user'] ?? null,'csrfToken'=>csrf_token()]);
   }
 
   // ── POST /api/verify ──
   if ($method==='POST' && $uri==='/api/verify') {
-    require_auth();
+    require_auth(); require_csrf();
+    // Rate limit: max 5 verify attempts per user per 10 minutes
+    $verifyCnt = (int)$db->querySingle("SELECT COUNT(*) FROM app_logs WHERE event_type='verify_attempt' AND user_id=".$_SESSION['user']['id']." AND created_at>datetime('now','-10 minutes')");
+    if ($verifyCnt >= 5) out(['error'=>'Too many attempts. Wait 10 minutes.'], 429);
+    db_log($db,'verify_attempt',[]);
     $code = trim($b['code']??''); if (!$code) out(['error'=>'Verification code required'], 400);
     $u = $db->querySingle("SELECT verification_code,verified FROM users WHERE id=".$_SESSION['user']['id'], true);
     if (!$u) out(['error'=>'User not found'], 404);
@@ -292,7 +324,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/user/settings ──
   if ($method==='POST' && $uri==='/api/user/settings') {
-    require_auth();
+    require_auth(); require_csrf();
     $json = json_encode($b ?: []);
     $db->exec("UPDATE users SET settings='".$db->escapeString($json)."' WHERE id=".$_SESSION['user']['id']);
     db_log($db,'settings_updated',['keys'=>array_keys($b)]);
@@ -301,7 +333,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/user/change-password ──
   if ($method==='POST' && $uri==='/api/user/change-password') {
-    require_auth();
+    require_auth(); require_csrf();
     $cur = $b['currentPassword']??''; $new = $b['newPassword']??''; $code = $b['code']??'';
     if (!$cur || !$new) out(['error'=>'Current and new password required'], 400);
     if (strlen($new) < 8) out(['error'=>'New password must be at least 8 characters'], 400);
@@ -310,14 +342,17 @@ if (str_starts_with($uri, '/api/')) {
     if (!password_verify($cur, $u['password'])) out(['error'=>'Current password is incorrect'], 400);
     if ($u['verification_code'] && $code !== $u['verification_code']) out(['error'=>'Invalid or expired verification code'], 400);
     $hash = password_hash($new, PASSWORD_DEFAULT); $nc = gen_code();
-    $s = $db->prepare('UPDATE users SET password=:p, verification_code=:c WHERE id=:id');
+    $s = $db->prepare('UPDATE users SET password=:p, verification_code=:c, session_version=COALESCE(session_version,0)+1 WHERE id=:id');
     $s->bindValue(':p',$hash); $s->bindValue(':c',$nc); $s->bindValue(':id',$_SESSION['user']['id'],SQLITE3_INTEGER); $s->execute();
+    // Invalidate other sessions for this user
+    $db->exec("UPDATE app_logs SET details=details || ',session_invalidated' WHERE event_type='login_success' AND user_id=".$_SESSION['user']['id']);
     db_log($db,'password_changed_self',['userId'=>$_SESSION['user']['id']]);
     out(['success'=>true,'message'=>'Password changed. Your new verification code: '.$nc]);
   }
 
   // ── STT ──
   if ($method==='POST' && $uri==='/api/stt') {
+    require_auth(); require_csrf();
     $audio = $b['audio'] ?? '';
     if (!$audio) out(['error'=>'No audio data provided'], 400);
     $r = curl_post('http://192.168.10.182:5006/stt', ['file'=>$audio], 60);
@@ -342,7 +377,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/chats ──
   if ($method==='POST' && $uri==='/api/chats') {
-    require_auth();
+    require_auth(); require_csrf();
     $title = $b['title'] ?? 'New Chat'; $model = $b['model'] ?? $DEFAULT_MODEL;
     $cid = bin2hex(random_bytes(16));
     $s = $db->prepare('INSERT INTO chats (user_id,chat_id,title,model,system_prompt) VALUES(:uid,:cid,:t,:m,:sp)');
@@ -366,7 +401,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/chats/:chatId/messages (main chat) ──
   if ($method==='POST' && preg_match('#^/api/chats/([^/]+)/messages$#', $uri, $m)) {
-    require_auth();
+    require_auth(); require_csrf();
     $cid = $m[1]; $content = $b['content'] ?? '';
     if (!$content || !is_string($content)) out(['error'=>'Message content is required'], 400);
 
@@ -440,7 +475,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── DELETE /api/chats (all user chats) ──
   if ($method==='DELETE' && $uri==='/api/chats') {
-    require_auth();
+    require_auth(); require_csrf();
     $uid = $_SESSION['user']['id'];
     $res = $db->query("SELECT chat_id FROM chats WHERE user_id=$uid");
     $cids = []; while ($r = $res->fetchArray(SQLITE3_ASSOC)) $cids[] = $r['chat_id'];
@@ -454,7 +489,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── DELETE /api/chats/:chatId ──
   if ($method==='DELETE' && preg_match('#^/api/chats/([^/]+)$#', $uri, $m)) {
-    require_auth();
+    require_auth(); require_csrf();
     $cid = $m[1];
     $chat = $db->querySingle("SELECT * FROM chats WHERE chat_id='".$db->escapeString($cid)."' AND user_id=".$_SESSION['user']['id'], true);
     if (!$chat) out(['error'=>'Chat not found'], 404);
@@ -468,9 +503,11 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── POST /api/upload ──
   if ($method==='POST' && $uri==='/api/upload') {
-    require_auth();
+    require_auth(); require_csrf();
     if (empty($_FILES['file'])) out(['error'=>'No file provided'], 400);
     $f = $_FILES['file'];
+    if ($f['error'] !== UPLOAD_ERR_OK) out(['error'=>'Upload error: '.$f['error']], 400);
+    if ($f['size'] > 10*1024*1024) out(['error'=>'File too large (max 10MB)'], 400);
     $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
     $allowed = ['pdf','docx','pptx','xlsx','txt','csv','json','md','log','xml','html',
       'js','ts','jsx','tsx','py','java','cpp','c','h','cs','go','rs','rb','php',
@@ -548,7 +585,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── Admin: set-age ──
   if ($method==='POST' && $uri==='/api/admin/set-age') {
-    require_admin();
+    require_admin(); require_csrf();
     $uid = (int)($b['userId']??0); $age = $b['age'] ?? 18;
     if ($age !== null && ($age < 0 || $age > 150)) out(['error'=>'Invalid age'], 400);
     $age = $age ?: 18;
@@ -560,7 +597,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── Admin: make-admin ──
   if ($method==='POST' && $uri==='/api/admin/make-admin') {
-    require_admin();
+    require_admin(); require_csrf();
     $uid = (int)($b['userId']??0); if (!$uid) out(['error'=>'Invalid userId'], 400);
     $db->exec("UPDATE users SET is_admin=1 WHERE id=$uid");
     out(['success'=>true,'message'=>'User promoted to admin']);
@@ -568,7 +605,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── Admin: change-password ──
   if ($method==='POST' && $uri==='/api/admin/change-password') {
-    require_admin();
+    require_admin(); require_csrf();
     $uid = (int)($b['userId']??0); $pw = $b['newPassword']??'';
     if (!$uid || !$pw || strlen($pw)<8) out(['error'=>'Valid userId and password (>=8 chars) required'], 400);
     $hash = password_hash($pw, PASSWORD_DEFAULT);
@@ -587,7 +624,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── Admin: delete user ──
   if ($method==='DELETE' && preg_match('#^/api/admin/users/(\d+)$#', $uri, $m)) {
-    require_admin();
+    require_admin(); require_csrf();
     $uid = (int)$m[1]; if (!$uid) out(['error'=>'Invalid userId'], 400);
     $res = $db->query("SELECT chat_id FROM chats WHERE user_id=$uid");
     $db->exec('BEGIN');
@@ -617,12 +654,23 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── Admin: delete chat ──
   if ($method==='DELETE' && preg_match('#^/api/admin/chats-all/(.+)$#', $uri, $m)) {
-    require_admin();
+    require_admin(); require_csrf();
     $cid = $m[1];
     $db->exec("DELETE FROM messages WHERE chat_id='".$db->escapeString($cid)."'");
     $db->exec("DELETE FROM chats WHERE chat_id='".$db->escapeString($cid)."'");
     db_log($db,'admin_chat_deleted',['chatId'=>$cid]);
     out(['success'=>true,'message'=>'Chat deleted']);
+  }
+
+  // ── Admin: resend-verification ──
+  if ($method==='POST' && $uri==='/api/admin/resend-verification') {
+    require_admin(); require_csrf();
+    $uid = (int)($b['userId']??0); if (!$uid) out(['error'=>'Invalid userId'], 400);
+    $nc = gen_code();
+    $s = $db->prepare('UPDATE users SET verification_code=:c WHERE id=:id');
+    $s->bindValue(':c',$nc); $s->bindValue(':id',$uid,SQLITE3_INTEGER); $s->execute();
+    db_log($db,'admin_resend_verification',['userId'=>$uid]);
+    out(['success'=>true,'verificationCode'=>$nc]);
   }
 
   // ── Admin: stats ──
@@ -645,7 +693,7 @@ if (str_starts_with($uri, '/api/')) {
 
   // ── Admin: announce ──
   if ($method==='POST' && $uri==='/api/admin/announce') {
-    require_admin();
+    require_admin(); require_csrf();
     $msg = trim($b['message']??''); if (!$msg) out(['error'=>'Message required'], 400);
     $cid = 'announcement-'.bin2hex(random_bytes(16));
     $s = $db->prepare('INSERT INTO chats (user_id,chat_id,title,model,system_prompt) VALUES(1,:cid,:t,:m,:sp)');
@@ -674,8 +722,12 @@ if ($uri === '/admin') {
 }
 
 // ── Static files (PHP built-in server: return false to serve from -t docroot) ──
-$file = __DIR__.'/public'.$uri;
-if ($uri !== '/' && file_exists($file) && !is_dir($file)) {
+$safeUri = rawurldecode($uri);
+if (preg_match('/\.\.|%2e%2e|%252e|%c0%ae|%c1%9c/i', $safeUri)) out(['error'=>'Bad request'], 400);
+$file = __DIR__.'/public'.$safeUri;
+$realFile = realpath($file);
+$realPublic = realpath(__DIR__.'/public');
+if ($realFile && $realPublic && str_starts_with($realFile, $realPublic.'/') && !is_dir($realFile)) {
   $ext2 = strtolower(pathinfo($file, PATHINFO_EXTENSION));
   $mime = 'application/octet-stream';
   if (in_array($ext2, ['html'])) $mime = 'text/html';
