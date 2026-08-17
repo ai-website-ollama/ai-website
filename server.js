@@ -150,9 +150,8 @@ function generateVerificationCode() {
 async function webSearch(query) {
   const currentYear = new Date().getFullYear();
   try {
-    // Use DuckDuckGo with time filtering (past year)
     const response = await axios.get('https://html.duckduckgo.com/html/', {
-      params: { q: query, df: 'y', kl: 'us-en' },
+      params: { q: query + ' ' + currentYear, kl: 'us-en' },
       timeout: 10000,
       headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
     });
@@ -177,7 +176,7 @@ async function webSearch(query) {
       }
     }
 
-    // Also try to fetch top result pages for richer content
+    // Fetch top result pages for richer content
     const enriched = [];
     for (const r of results.slice(0, 3)) {
       try {
@@ -186,17 +185,17 @@ async function webSearch(query) {
           headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' },
           maxRedirects: 3
         });
-        const text = (pageRes.data || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').substring(0, 2000);
-        enriched.push(r.title + '\nURL: ' + r.url + '\nContent: ' + (r.snippet || text.substring(0, 300)));
+        const text = (pageRes.data || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').substring(0, 3000);
+        enriched.push({ title: r.title, url: r.url, content: text.substring(0, 800) });
       } catch (_) {
-        enriched.push(r.title + ' - ' + r.snippet + ' (' + r.url + ')');
+        enriched.push({ title: r.title, url: r.url, content: r.snippet || '' });
       }
     }
 
     if (enriched.length > 0) {
-      return 'Current year: ' + currentYear + '\n\nTop results:\n\n' + enriched.join('\n\n---\n\n');
+      return enriched.map((r, i) => (i+1) + '. ' + r.title + '\nURL: ' + r.url + '\n' + r.content).join('\n\n');
     }
-    return 'Current year: ' + currentYear + '\n\nResults:\n' + results.map(r => r.title + ' - ' + r.snippet + ' (' + r.url + ')').join('\n');
+    return results.map((r, i) => (i+1) + '. ' + r.title + '\n' + r.url + '\n' + r.snippet).join('\n\n');
   } catch (e) {
     console.error('Web search helper error:', e.message);
     return 'Search failed: ' + e.message;
@@ -696,19 +695,7 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
 
       // Skip second AI pass — llama3.2 ignores instructions too often
       // Just return formatted search results directly
-      const formattedResults = searchResults
-        .split('\n\n---\n\n')
-        .filter(Boolean)
-        .map((block, i) => {
-          const lines = block.split('\n');
-          const title = lines[0] || '';
-          const url = (block.match(/URL:\s*(.+)/) || [])[1] || '';
-          const content = lines.slice(1).join('\n').replace(/^Content:\s*/, '').substring(0, 500);
-          return (i + 1) + '. **' + title + '**\n' + (content ? content + '\n' : '') + (url ? '🔗 ' + url : '');
-        })
-        .join('\n\n');
-
-      assistantMessage = '🔍 Here are the latest results for **"' + searchQuery + '"**:\n\n' + (formattedResults || searchResults);
+      assistantMessage = '🔍 **Search results for "' + searchQuery + '"**:\n\n' + (searchResults || 'No results found.');
     }
 
     // sanitize assistant output for obvious jailbreak attempts
