@@ -31,7 +31,9 @@ const LOG_DIR = path.join(__dirname, 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'app.log');
 
 // Database setup
-const db = new Database(path.join(__dirname, 'db', 'app.db'));
+const DB_DIR = path.join(__dirname, 'db');
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+const db = new Database(path.join(DB_DIR, 'app.db'));
 
 if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -493,6 +495,10 @@ app.post('/api/admin/change-password', isAdmin, async (req, res) => {
   try {
     const { userId, newPassword } = req.body;
     
+    if (!userId || !newPassword || newPassword.length < 8) {
+      return res.status(400).json({ error: 'Valid userId and password (>=8 chars) required' });
+    }
+    
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, userId);
     
@@ -515,8 +521,17 @@ app.get('/api/admin/users', isAdmin, (req, res) => {
 
 app.delete('/api/admin/users/:userId', isAdmin, (req, res) => {
   try {
-    db.prepare('DELETE FROM chats WHERE user_id = ?').run(req.params.userId);
-    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.userId);
+    const userId = Number(req.params.userId);
+    if (!userId) return res.status(400).json({ error: 'Invalid userId' });
+    const chatIds = db.prepare('SELECT chat_id FROM chats WHERE user_id = ?').all(userId);
+    const delMsg = db.prepare('DELETE FROM messages WHERE chat_id = ?');
+    const delChat = db.prepare('DELETE FROM chats WHERE user_id = ?');
+    const delUser = db.prepare('DELETE FROM users WHERE id = ?');
+    db.transaction(() => {
+      chatIds.forEach(c => delMsg.run(c.chat_id));
+      delChat.run(userId);
+      delUser.run(userId);
+    })();
     res.json({ success: true, message: 'User deleted' });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -808,8 +823,10 @@ app.delete('/api/chats/:chatId', isAuthenticated, (req, res) => {
       return res.status(404).json({ error: 'Chat not found' });
     }
     
-    db.prepare('DELETE FROM messages WHERE chat_id = ?').run(req.params.chatId);
-    db.prepare('DELETE FROM chats WHERE chat_id = ?').run(req.params.chatId);
+    db.transaction(() => {
+      db.prepare('DELETE FROM messages WHERE chat_id = ?').run(req.params.chatId);
+      db.prepare('DELETE FROM chats WHERE chat_id = ?').run(req.params.chatId);
+    })();
     appendDbLog(req, 'chat_deleted', {}, req.params.chatId);
     
     res.json({ success: true, message: 'Chat deleted successfully' });

@@ -334,29 +334,47 @@
                 data.users.forEach(u => {
                     const age = u.age != null ? u.age : 18;
                     const ageLabel = age >= 18 ? age : age + ' (filtered)';
-                    const uid = u.id;
-                    const uname = esc(u.username);
                     const row = document.createElement('tr');
+                    row.dataset.userId = u.id;
+                    row.dataset.username = u.username;
+                    row.dataset.age = age;
+                    row.dataset.verified = u.verified ? '1' : '0';
+                    row.dataset.isAdmin = u.is_admin ? '1' : '0';
                     row.innerHTML =
-                        '<td>'+uid+'</td><td>'+uname+'</td><td>'+esc(u.email)+'</td>' +
+                        '<td>'+esc(String(u.id))+'</td><td>'+esc(u.username)+'</td><td>'+esc(u.email)+'</td>' +
                         '<td><span class="badge '+(u.is_admin?'badge-admin':'badge-user')+'">'+(u.is_admin?'Admin':'User')+'</span></td>' +
-                        '<td><span style="cursor:pointer;color:var(--accent-primary)" onclick="promptSetAge('+uid+',\''+uname+'\','+age+')">'+ageLabel+'</span></td>' +
+                        '<td><span class="age-cell" style="cursor:pointer;color:var(--accent-primary)">'+ageLabel+'</span></td>' +
                         '<td><span style="color:'+(u.verified?'var(--success)':'var(--danger)')+'">'+(u.verified?'Yes':'No')+'</span></td>' +
                         '<td>'+new Date(u.created_at).toLocaleDateString()+'</td>' +
                         '<td><div class="action-buttons">' +
-                        (!u.verified?'<button class="action-btn" onclick="resendVerification('+uid+',\''+uname+'\')" title="Resend Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>':'') +
-                        '<button class="action-btn" onclick="promptSetAge('+uid+',\''+uname+'\','+age+')" title="Set Age"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></button>' +
-                        '<button class="action-btn" onclick="promptChangePassword('+uid+',\''+uname+'\')" title="Change Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>' +
-                        '<button class="action-btn action-btn-danger" onclick="promptDeleteUser('+uid+',\''+uname+'\')" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
+                        (!u.verified?'<button class="action-btn resend-btn" title="Resend Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>':'') +
+                        '<button class="action-btn set-age-btn" title="Set Age"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></button>' +
+                        '<button class="action-btn change-pw-btn" title="Change Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>' +
+                        '<button class="action-btn action-btn-danger delete-user-btn" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
                         '</div></td>';
                     tbody.appendChild(row);
                 });
-                document.getElementById('userSearch').addEventListener('input', e => {
-                    const q = e.target.value.toLowerCase();
-                    document.querySelectorAll('#usersTableBody tr').forEach(r => {
-                        r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+                tbody.onclick = function(e) {
+                    const row = e.target.closest('tr[data-user-id]');
+                    if (!row) return;
+                    const uid = Number(row.dataset.userId);
+                    const uname = row.dataset.username;
+                    const age = Number(row.dataset.age);
+                    if (e.target.closest('.age-cell')) return promptSetAge(uid, uname, age);
+                    if (e.target.closest('.resend-btn')) return resendVerification(uid, uname);
+                    if (e.target.closest('.set-age-btn')) return promptSetAge(uid, uname, age);
+                    if (e.target.closest('.change-pw-btn')) return promptChangePassword(uid, uname);
+                    if (e.target.closest('.delete-user-btn')) return promptDeleteUser(uid, uname);
+                };
+                if (!document.getElementById('userSearch').dataset.bound) {
+                    document.getElementById('userSearch').addEventListener('input', e => {
+                        const q = e.target.value.toLowerCase();
+                        document.querySelectorAll('#usersTableBody tr').forEach(r => {
+                            r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+                        });
                     });
-                });
+                    document.getElementById('userSearch').dataset.bound = '1';
+                }
             } catch (e) { console.error('Load users:', e); }
         }
 

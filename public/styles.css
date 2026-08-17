@@ -333,7 +333,6 @@ body {
     color: var(--text-secondary);
     border: none;
     cursor: pointer;
-    display: flex;
     align-items: center;
     justify-content: center;
 }
@@ -461,6 +460,17 @@ body {
     width: 16px;
     height: 16px;
     opacity: 0.7;
+}
+
+.search-result-item {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+.search-result-item:hover {
+    background: var(--bg-secondary);
 }
 
 /* ===== Messages ===== */
@@ -1523,15 +1533,15 @@ body.compact .chat-item {
     padding: 8px 10px;
 }
 
-body.compact .chat-item-title {
+body.compact .chat-title {
     font-size: 12px;
 }
 
-body.compact .chat-item-date {
+body.compact .chat-date {
     font-size: 10px;
 }
 
-body.compact .main-header {
+body.compact .chat-header {
     padding: 8px 12px;
 }
 
@@ -1539,25 +1549,8 @@ body.compact .messages-container {
     padding: 12px;
 }
 
-body.compact .input-area {
+body.compact .input-container {
     padding: 8px 12px;
-}
-
-/* Danger button */
-.btn-danger {
-    background-color: var(--danger);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    padding: 8px 16px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-}
-
-.btn-danger:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
 }
 
 /* Settings textarea */

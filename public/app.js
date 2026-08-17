@@ -396,6 +396,7 @@ class ZigApp {
             codeBlocks.push({ token, html });
             return token;
         });
+        formatted = this.escapeHtml(formatted);
         formatted = formatted
             .replace(/`([^`]+)`/g, '<code>$1</code>')
             .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -619,13 +620,18 @@ class ZigApp {
                 if (results.length === 0) {
                     this.searchResults.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No results found</div>';
                 } else {
-                    this.searchResults.innerHTML = results.map(r =>
-                        '<div style="margin-bottom:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-md);cursor:pointer;" onclick="app.injectSearchResult(\'' + this.escapeHtml(r.url).replace(/'/g, "\\'") + '\', \'' + this.escapeHtml(r.title).replace(/'/g, "\\'") + '\')">' +
+                    this.searchResults.innerHTML = results.map((r, idx) =>
+                        '<div class="search-result-item" data-url="' + this.escapeHtml(r.url) + '" data-title="' + this.escapeHtml(r.title) + '">' +
                             '<div style="font-weight:600;color:var(--accent-primary);font-size:14px;margin-bottom:4px;">' + this.escapeHtml(r.title) + '</div>' +
                             '<div style="font-size:11px;color:var(--text-muted);word-break:break-all;margin-bottom:4px;">' + this.escapeHtml(r.url) + '</div>' +
                             (r.snippet ? '<div style="font-size:13px;color:var(--text-secondary);">' + this.escapeHtml(r.snippet) + '</div>' : '') +
                         '</div>'
                     ).join('');
+                    this.searchResults.querySelectorAll('.search-result-item').forEach(el => {
+                        el.addEventListener('click', () => {
+                            this.injectSearchResult(el.dataset.url, el.dataset.title);
+                        });
+                    });
                 }
             } else {
                 this.searchResults.innerHTML = '<div class="error-message">Search failed</div>';
