@@ -677,6 +677,7 @@ class ZigApp {
 
     async handleFileUpload(file) {
         if (!file) return;
+        const safeName = file.name.replace(/[<>"'&\\\/]/g, '_').substring(0, 100);
         const preview = document.getElementById('uploadPreview');
         const fileName = document.getElementById('uploadFileName');
         const status = document.getElementById('uploadStatus');
@@ -690,7 +691,7 @@ class ZigApp {
             const data = await res.json();
             if (data.success) {
                 this.uploadedText = data.text;
-                this.uploadedFilename = data.filename;
+                this.uploadedFilename = safeName;
                 if (status) status.textContent = data.chars + ' chars extracted';
                 if (this.sendBtn) this.sendBtn.disabled = false;
             } else {

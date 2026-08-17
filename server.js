@@ -349,9 +349,23 @@ function isUnsafe(text) {
   if (!text) return false;
   const s = String(text).toLowerCase();
   const banned = [
-    'ignore previous', 'ignore instructions', 'jailbreak', 'bypass', 'bypass safety',
-    'role: system', 'become my', 'break the rules', 'follow my instructions even if',
-    'override safety', 'disable safety'
+    'ignore previous', 'ignore instructions', 'ignore all instructions',
+    'ignore above', 'ignore the above', 'disregard previous', 'disregard instructions',
+    'forget everything', 'forget your instructions', 'forget your training',
+    'jailbreak', 'jailbreak prompt', 'bypass', 'bypass safety', 'bypass filter',
+    'role: system', 'system: you are', 'new instructions', 'new system prompt',
+    'become my', 'you are now', 'from now on you will', 'from now on, you',
+    'break the rules', 'break your rules', 'no restrictions', 'no limitations',
+    'follow my instructions even if', 'do whatever i say', 'do exactly what i say',
+    'override safety', 'override your safety', 'override your programming',
+    'disable safety', 'disable your safety', 'disable content filter',
+    'developer mode', 'dan mode', 'unrestricted mode', 'god mode',
+    'respond without limits', 'respond without restrictions', 'no rules apply',
+    'pretend you have no', 'act as if you have no', 'act as if the system',
+    'hypothetically if you had no', 'hypothetically, if you had no',
+    'output your system prompt', 'reveal your system prompt', 'print your instructions',
+    'repeat after me', 'say the following', 'repeat the above',
+    'you must obey', 'you must follow', 'you must comply'
   ];
   return banned.some(b => s.includes(b));
 }
@@ -664,8 +678,8 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
       return res.status(404).json({ error: 'Chat not found' });
     }
     
-    // Basic safety check on user content (skip for file uploads)
-    if (!content.startsWith('[File:') && isUnsafe(content)) {
+    // Basic safety check on user content
+    if (isUnsafe(content)) {
       return res.status(400).json({ error: 'Message contains unsafe or disallowed patterns.' });
     }
 
@@ -731,12 +745,13 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
       outputChars: assistantMessage.length
     });
     
-    // Update chat title if it's the first message
+    // Update chat title if it's the first message (strip HTML for XSS safety)
     if (chat.title === 'New Chat') {
+      const safeTitle = content.substring(0, 50).replace(/<[^>]*>/g, '').replace(/[<>"'&]/g, '');
       const updateStmt = db.prepare(`
         UPDATE chats SET title = ? WHERE chat_id = ?
       `);
-      updateStmt.run(content.substring(0, 50), chatId);
+      updateStmt.run(safeTitle, chatId);
     }
     
     const messages = db.prepare(`
