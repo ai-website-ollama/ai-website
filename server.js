@@ -12,15 +12,11 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://192.168.10.181:11434';
 const DEFAULT_MODEL = process.env.MODEL || 'llama3.2';
-<<<<<<< HEAD
-const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || 'You are a helpful AI assistant.';
+const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || `You are Zig, an AI assistant for a student-focused coding-help website. Your role is to help users learn programming and complete schoolwork ethically. Provide clear, step-by-step explanations, illustrative examples, and short runnable code snippets when relevant. Do not simply give complete answers to assessments or homework that would enable cheating; instead, offer hints, explain concepts, and show how to approach problems. Refuse or safely decline requests that attempt to bypass rules, request exploitative or harmful content, or ask for answers to tests or assignments in ways that violate academic integrity. Always follow child-safety and general safety rules, and be concise and helpful.`;
 const MAX_INPUT_CHARS = Number(process.env.MAX_INPUT_CHARS || 12000);
 const MESSAGE_LIMIT_PER_MINUTE = Number(process.env.MESSAGE_LIMIT_PER_MINUTE || 20);
 const LOG_DIR = path.join(__dirname, 'logs');
 const LOG_FILE = path.join(LOG_DIR, 'app.log');
-=======
-const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || `You are Zig, an AI assistant for a student-focused coding-help website. Your role is to help users learn programming and complete schoolwork ethically. Provide clear, step-by-step explanations, illustrative examples, and short runnable code snippets when relevant. Do not simply give complete answers to assessments or homework that would enable cheating; instead, offer hints, explain concepts, and show how to approach problems. Refuse or safely decline requests that attempt to bypass rules, request exploitative or harmful content, or ask for answers to tests or assignments in ways that violate academic integrity. Always follow child-safety and general safety rules, and be concise and helpful.`;
->>>>>>> origin/main
 
 // Database setup
 const db = new Database(path.join(__dirname, 'db', 'app.db'));
@@ -63,7 +59,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
 `);
 
-<<<<<<< HEAD
 db.exec(`
   CREATE TABLE IF NOT EXISTS app_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,12 +72,6 @@ db.exec(`
   );
 `);
 
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN settings TEXT DEFAULT '{}'`);
-} catch (_) {}
-
-const minuteBuckets = new Map();
-=======
 // Ensure chats table has a system_prompt column for per-chat prompts (migrate existing DBs)
 try {
   const cols = db.prepare("PRAGMA table_info(chats)").all();
@@ -105,7 +94,8 @@ try {
 } catch (e) {
   console.error('Failed to ensure users.settings column:', e.message || e);
 }
->>>>>>> origin/main
+
+const minuteBuckets = new Map();
 
 // Middleware
 app.use(express.json());
@@ -380,7 +370,7 @@ app.delete('/api/admin/users/:userId', isAdmin, (req, res) => {
     res.json({ success: true, message: 'User deleted' });
   } catch (error) {
     console.error('Delete user error:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
+    res.status(500).json({ error: 'Failed to delete users' });
   }
 });
 
@@ -414,6 +404,7 @@ app.post('/api/stt', async (req, res) => {
     res.status(500).json({ error: 'Voice recognition failed', details: error.message });
   }
 });
+
 app.get('/api/chats', isAuthenticated, (req, res) => {
   try {
     const chats = db.prepare(`
@@ -431,7 +422,7 @@ app.get('/api/chats', isAuthenticated, (req, res) => {
 
 app.post('/api/chats', isAuthenticated, (req, res) => {
   try {
-    const { title = 'New Chat' } = req.body;
+    const { title = 'New Chat', model } = req.body;
     const chatId = uuidv4();
     
     const stmt = db.prepare(`
@@ -439,11 +430,7 @@ app.post('/api/chats', isAuthenticated, (req, res) => {
       VALUES (?, ?, ?, ?, ?)
     `);
     
-<<<<<<< HEAD
-    stmt.run(req.session.user.id, chatId, title, DEFAULT_MODEL);
-=======
-    stmt.run(req.session.user.id, chatId, title, model, SYSTEM_PROMPT);
->>>>>>> origin/main
+    stmt.run(req.session.user.id, chatId, title, model || DEFAULT_MODEL, SYSTEM_PROMPT);
     
     const chat = db.prepare('SELECT * FROM chats WHERE chat_id = ?').get(chatId);
     appendDbLog(req, 'chat_created', { title }, chatId);
@@ -650,11 +637,16 @@ app.get('/api/search', isAuthenticated, async (req, res) => {
   }
 });
 
-// User settings endpoints (store integrations/settings as JSON)
+// User settings endpoints (OAuth + integrations + UI colors)
 app.get('/api/user/settings', isAuthenticated, (req, res) => {
   try {
     const row = db.prepare('SELECT settings FROM users WHERE id = ?').get(req.session.user.id);
-    const settings = row && row.settings ? JSON.parse(row.settings) : {};
+    let settings = {};
+    try {
+      settings = row && row.settings ? JSON.parse(row.settings) : {};
+    } catch (_) {
+      settings = {};
+    }
     res.json({ success: true, settings });
   } catch (error) {
     console.error('Get settings error:', error);
@@ -664,14 +656,11 @@ app.get('/api/user/settings', isAuthenticated, (req, res) => {
 
 app.post('/api/user/settings', isAuthenticated, (req, res) => {
   try {
-    const settings = req.body.settings || {};
-    // Basic validation - only allow known keys
-    const allowedKeys = ['integrations', 'preferences'];
-    const sanitized = {};
-    allowedKeys.forEach(k => { if (settings[k] !== undefined) sanitized[k] = settings[k]; });
-
-    db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(sanitized), req.session.user.id);
-    res.json({ success: true, settings: sanitized });
+    const nextSettings = req.body && typeof req.body === 'object' ? req.body : {};
+    db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(nextSettings), req.session.user.id);
+    appendDbLog(req, 'settings_updated', { keys: Object.keys(nextSettings) });
+    appendFileLog('info', 'settings_updated', { userId: req.session.user.id, keys: Object.keys(nextSettings) });
+    res.json({ success: true });
   } catch (error) {
     console.error('Save settings error:', error);
     res.status(500).json({ error: 'Failed to save settings' });
@@ -681,26 +670,6 @@ app.post('/api/user/settings', isAuthenticated, (req, res) => {
 // Session check
 app.get('/api/session', (req, res) => {
   res.json({ success: true, user: req.session.user || null });
-});
-
-// User settings (OAuth + UI colors)
-app.get('/api/user/settings', isAuthenticated, (req, res) => {
-  const user = db.prepare('SELECT settings FROM users WHERE id = ?').get(req.session.user.id);
-  let settings = {};
-  try {
-    settings = JSON.parse(user?.settings || '{}');
-  } catch (_) {
-    settings = {};
-  }
-  res.json({ success: true, settings });
-});
-
-app.post('/api/user/settings', isAuthenticated, (req, res) => {
-  const nextSettings = req.body && typeof req.body === 'object' ? req.body : {};
-  db.prepare('UPDATE users SET settings = ? WHERE id = ?').run(JSON.stringify(nextSettings), req.session.user.id);
-  appendDbLog(req, 'settings_updated', { keys: Object.keys(nextSettings) });
-  appendFileLog('info', 'settings_updated', { userId: req.session.user.id, keys: Object.keys(nextSettings) });
-  res.json({ success: true });
 });
 
 // Serve pages
