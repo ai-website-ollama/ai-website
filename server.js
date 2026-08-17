@@ -633,6 +633,25 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
   }
 });
 
+app.delete('/api/chats', isAuthenticated, (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const chatIds = db.prepare('SELECT chat_id FROM chats WHERE user_id = ?').all(userId);
+    const deleteMessages = db.prepare('DELETE FROM messages WHERE chat_id = ?');
+    const deleteChats = db.prepare('DELETE FROM chats WHERE user_id = ?');
+    const tx = db.transaction(() => {
+      chatIds.forEach(c => deleteMessages.run(c.chat_id));
+      deleteChats.run(userId);
+    });
+    tx();
+    appendDbLog(req, 'chats_deleted_all', { userId, count: chatIds.length });
+    res.json({ success: true, message: 'All chats deleted', count: chatIds.length });
+  } catch (error) {
+    console.error('Delete all chats error:', error);
+    res.status(500).json({ error: 'Failed to delete chats' });
+  }
+});
+
 app.delete('/api/chats/:chatId', isAuthenticated, (req, res) => {
   try {
     const chat = db.prepare('SELECT * FROM chats WHERE chat_id = ? AND user_id = ?')
@@ -743,6 +762,123 @@ app.post('/api/admin/set-age', isAdmin, (req, res) => {
   } catch (error) {
     console.error('Set age error:', error);
     res.status(500).json({ error: 'Failed to set age' });
+  }
+});
+
+app.get('/api/admin/logs', isAdmin, (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const offset = Number(req.query.offset) || 0;
+    const logs = db.prepare(`
+      SELECT l.*, u.username 
+      FROM app_logs l 
+      LEFT JOIN users u ON l.user_id = u.id 
+      ORDER BY l.created_at DESC 
+      LIMIT ? OFFSET ?
+    `).all(limit, offset);
+    const total = db.prepare('SELECT COUNT(*) as c FROM app_logs').get().c;
+    res.json({ success: true, logs, total });
+  } catch (error) {
+    console.error('Get logs error:', error);
+    res.status(500).json({ error: 'Failed to get logs' });
+  }
+});
+
+app.get('/api/admin/chats-all', isAdmin, (req, res) => {
+  try {
+    const chats = db.prepare(`
+      SELECT c.*, u.username, 
+        (SELECT COUNT(*) FROM messages WHERE chat_id = c.chat_id) as message_count
+      FROM chats c 
+      LEFT JOIN users u ON c.user_id = u.id 
+      ORDER BY c.created_at DESC
+    `).all();
+    res.json({ success: true, chats });
+  } catch (error) {
+    console.error('Get all chats error:', error);
+    res.status(500).json({ error: 'Failed to get chats' });
+  }
+});
+
+app.delete('/api/admin/chats-all/:chatId', isAdmin, (req, res) => {
+  try {
+    db.prepare('DELETE FROM messages WHERE chat_id = ?').run(req.params.chatId);
+    db.prepare('DELETE FROM chats WHERE chat_id = ?').run(req.params.chatId);
+    appendDbLog(req, 'admin_chat_deleted', { chatId: req.params.chatId });
+    res.json({ success: true, message: 'Chat deleted' });
+  } catch (error) {
+    console.error('Admin delete chat error:', error);
+    res.status(500).json({ error: 'Failed to delete chat' });
+  }
+});
+
+app.get('/api/admin/stats', isAdmin, async (req, res) => {
+  try {
+    const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+    const chatCount = db.prepare('SELECT COUNT(*) as c FROM chats').get().c;
+    const messageCount = db.prepare('SELECT COUNT(*) as c FROM messages').get().c;
+    const logCount = db.prepare('SELECT COUNT(*) as c FROM app_logs').get().c;
+    const recentLogins = db.prepare(
+      "SELECT COUNT(*) as c FROM app_logs WHERE event_type = 'login_success' AND created_at > datetime('now', '-24 hours')"
+    ).get().c;
+    const recentMessages = db.prepare(
+      "SELECT COUNT(*) as c FROM app_logs WHERE event_type = 'message_user' AND created_at > datetime('now', '-24 hours')"
+    ).get().c;
+
+    let ollamaStatus = 'unknown';
+    try {
+      const ollamaRes = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
+      ollamaStatus = ollamaRes.data?.models?.length > 0 ? 'connected' : 'no models';
+    } catch (e) {
+      ollamaStatus = 'disconnected';
+    }
+
+    const dbSize = (() => {
+      try {
+        const stat = fs.statSync(path.join(__dirname, 'db', 'app.db'));
+        return (stat.size / 1024).toFixed(1) + ' KB';
+      } catch (e) { return 'unknown'; }
+    })();
+
+    const uptime = (process.uptime() / 60).toFixed(1) + ' min';
+
+    res.json({
+      success: true,
+      stats: {
+        userCount, chatCount, messageCount, logCount,
+        recentLogins, recentMessages,
+        ollamaStatus, dbSize, uptime, port: PORT,
+        ollamaUrl: OLLAMA_URL, model: DEFAULT_MODEL
+      }
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+app.post('/api/admin/announce', isAdmin, (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) return res.status(400).json({ error: 'Message required' });
+    
+    const users = db.prepare('SELECT id FROM users').all();
+    const chatId = 'announcement-' + uuidv4();
+    
+    // Create a special announcement chat entry
+    db.prepare('INSERT INTO chats (user_id, chat_id, title, model, system_prompt) VALUES (?, ?, ?, ?, ?)')
+      .run(1, chatId, 'System Announcement', DEFAULT_MODEL, SYSTEM_PROMPT);
+    
+    db.prepare('INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)')
+      .run(chatId, 'assistant', '📢 **Announcement from Admin:**\n\n' + message.trim());
+    
+    appendDbLog(req, 'announcement_sent', { message: message.trim().substring(0, 200), userCount: users.length });
+    appendFileLog('info', 'announcement_sent', { adminId: req.session.user.id, userCount: users.length });
+    
+    res.json({ success: true, message: 'Announcement sent', userCount: users.length });
+  } catch (error) {
+    console.error('Announce error:', error);
+    res.status(500).json({ error: 'Failed to send announcement' });
   }
 });
 

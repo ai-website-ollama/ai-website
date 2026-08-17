@@ -5,38 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Zig</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .log-entry { padding:10px 14px;border-bottom:1px solid var(--bg-tertiary);font-size:13px;display:flex;gap:12px;align-items:flex-start; }
+        .log-entry:hover { background:var(--bg-hover); }
+        .log-ts { color:var(--text-muted);font-size:11px;white-space:nowrap;min-width:140px; }
+        .log-type { padding:2px 8px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;white-space:nowrap; }
+        .log-type.login { background:rgba(16,185,129,0.15);color:var(--success); }
+        .log-type.message { background:rgba(233,30,140,0.15);color:var(--accent-primary); }
+        .log-type.error { background:rgba(245,158,11,0.15);color:var(--warning); }
+        .log-type.admin { background:rgba(99,102,241,0.15);color:var(--accent-secondary); }
+        .log-type.other { background:var(--bg-tertiary);color:var(--text-secondary); }
+        .log-detail { color:var(--text-secondary);font-size:12px;flex:1;word-break:break-word; }
+        .stats-row { display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px; }
+        .announce-box { width:100%;min-height:100px;padding:12px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--bg-hover);border-radius:var(--radius-md);font-family:inherit;font-size:14px;resize:vertical; }
+        .announce-box:focus { outline:none;border-color:var(--accent-primary); }
+        .chat-row { display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--bg-tertiary); }
+        .chat-row:hover { background:var(--bg-hover); }
+        .chat-row-info { flex:1;min-width:0; }
+        .chat-row-title { font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        .chat-row-meta { font-size:12px;color:var(--text-muted);margin-top:2px; }
+        .chat-row-actions { display:flex;gap:4px;flex-shrink:0; }
+        .tab-bar { display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--bg-tertiary);padding-bottom:0; }
+        .tab-btn { padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;font-weight:500; }
+        .tab-btn.active { color:var(--accent-primary);border-bottom-color:var(--accent-primary); }
+        .tab-btn:hover { color:var(--text-primary); }
+        .empty-state { text-align:center;padding:40px;color:var(--text-muted); }
+        .filter-bar { display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap; }
+        .filter-bar select,.filter-bar input { padding:6px 10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--bg-hover);border-radius:var(--radius-sm);font-size:13px; }
+    </style>
 </head>
 <body class="admin-body">
     <div class="admin-container">
         <aside class="admin-sidebar">
             <div class="admin-header">
-                <svg class="claude-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/>
-                    <path d="M12 6C8.69 6 6 8.69 6 12H8C8 9.79 9.79 8 12 8V6Z" fill="currentColor"/>
-                </svg>
+                <svg class="claude-logo" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="currentColor"/><path d="M12 6C8.69 6 6 8.69 6 12H8C8 9.79 9.79 8 12 8V6Z" fill="currentColor"/></svg>
                 <h2>Admin Panel</h2>
             </div>
             <nav class="admin-nav">
                 <a href="#" class="admin-nav-item active" data-section="dashboard">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                     <span>Dashboard</span>
                 </a>
                 <a href="#" class="admin-nav-item" data-section="users">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                     <span>Users</span>
+                </a>
+                <a href="#" class="admin-nav-item" data-section="chats">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Chats</span>
+                </a>
+                <a href="#" class="admin-nav-item" data-section="logs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span>Logs</span>
+                </a>
+                <a href="#" class="admin-nav-item" data-section="announce">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+                    <span>Announce</span>
                 </a>
                 <a href="/" class="admin-nav-item">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                     <span>Back to Chat</span>
                 </a>
                 <a href="/api/logout" class="admin-nav-item logout">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     <span>Log out</span>
                 </a>
             </nav>
@@ -44,53 +75,30 @@
 
         <main class="admin-main">
             <div class="admin-content" id="adminContent">
+
+                <!-- DASHBOARD -->
                 <section class="admin-section active" id="dashboard">
                     <div class="section-header">
                         <h1>Dashboard</h1>
                         <p class="section-description">Overview of your Zig instance</p>
                     </div>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-value" id="totalUsers">0</span>
-                                <span class="stat-label">Total Users</span>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-value" id="totalChats">0</span>
-                                <span class="stat-label">Total Chats</span>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-value" id="totalAdmins">0</span>
-                                <span class="stat-label">Admin Users</span>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="stats-grid" id="dashStats"></div>
                     <div class="panel">
                         <h2>Quick Actions</h2>
-                        <div class="quick-actions">
+                        <div class="quick-actions" style="flex-wrap:wrap;gap:10px;">
                             <button class="btn btn-primary" onclick="showSection('users')">Manage Users</button>
-                            <button class="btn btn-primary" onclick="showCreateUserModal()">Create User</button>
+                            <button class="btn btn-primary" onclick="showCreateUserModal()">+ New User</button>
+                            <button class="btn btn-primary" onclick="showSection('logs')">View Logs</button>
+                            <button class="btn btn-primary" onclick="showSection('announce')">Send Announcement</button>
                         </div>
                     </div>
                 </section>
 
+                <!-- USERS -->
                 <section class="admin-section" id="users">
                     <div class="section-header">
                         <h1>User Management</h1>
-                        <p class="section-description">Manage all users, their permissions, and age settings</p>
+                        <p class="section-description">Manage users, ages, and verification</p>
                     </div>
                     <div class="panel">
                         <div class="panel-header">
@@ -104,15 +112,7 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Username</th>
-                                    <th>Email</th>
-                                    <th>Role</th>
-                                    <th>Age</th>
-                                    <th>Verified</th>
-                                    <th>Code</th>
-                                    <th>Joined</th>
-                                    <th>Actions</th>
+                                    <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Age</th><th>Verified</th><th>Code</th><th>Joined</th><th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
@@ -121,6 +121,72 @@
                         </table>
                     </div>
                 </section>
+
+                <!-- CHATS -->
+                <section class="admin-section" id="chats">
+                    <div class="section-header">
+                        <h1>Chat Management</h1>
+                        <p class="section-description">View and manage all user chats</p>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>All Chats</h2>
+                            <div class="panel-actions">
+                                <input type="text" id="chatSearch" placeholder="Search chats..." oninput="filterChats(this.value)">
+                                <button class="btn btn-secondary" onclick="loadAllChats()">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="chatsList" style="max-height:600px;overflow-y:auto;">
+                            <div class="empty-state">Loading chats...</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LOGS -->
+                <section class="admin-section" id="logs">
+                    <div class="section-header">
+                        <h1>Activity Logs</h1>
+                        <p class="section-description">View all system activity</p>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h2>Recent Activity</h2>
+                            <div class="panel-actions">
+                                <select id="logFilter" onchange="filterLogs(this.value)" style="padding:6px 10px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--bg-hover);border-radius:var(--radius-sm);font-size:13px;">
+                                    <option value="">All Events</option>
+                                    <option value="login">Logins</option>
+                                    <option value="message">Messages</option>
+                                    <option value="error">Errors</option>
+                                    <option value="admin">Admin Actions</option>
+                                </select>
+                                <button class="btn btn-secondary" onclick="loadLogs()">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="logsContainer" style="max-height:600px;overflow-y:auto;">
+                            <div class="empty-state">Loading logs...</div>
+                        </div>
+                        <div style="padding:12px;text-align:center;">
+                            <button class="btn btn-secondary" id="loadMoreLogsBtn" onclick="loadMoreLogs()" style="display:none;">Load More</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ANNOUNCEMENTS -->
+                <section class="admin-section" id="announce">
+                    <div class="section-header">
+                        <h1>Announcements</h1>
+                        <p class="section-description">Send a message to all users</p>
+                    </div>
+                    <div class="panel">
+                        <h2 style="margin-bottom:12px;">Send Announcement</h2>
+                        <textarea class="announce-box" id="announceMessage" placeholder="Type your announcement here... (supports markdown)"></textarea>
+                        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+                            <button class="btn btn-primary" onclick="sendAnnouncement()">Send to All Users</button>
+                            <span id="announceResult" style="font-size:13px;color:var(--success);"></span>
+                        </div>
+                    </div>
+                </section>
+
             </div>
         </main>
     </div>
@@ -130,31 +196,14 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Create New User</h2>
-                <button class="close-modal" onclick="closeModal('createUserModal')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <button class="close-modal" onclick="closeModal('createUserModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="newUsername">Username</label>
-                    <input type="text" id="newUsername" placeholder="Enter username" required>
-                </div>
-                <div class="form-group">
-                    <label for="newEmail">Email</label>
-                    <input type="email" id="newEmail" placeholder="Enter email" required>
-                </div>
-                <div class="form-group">
-                    <label for="newUserPassword">Password</label>
-                    <input type="password" id="newUserPassword" placeholder="Enter password (min 8 chars)" required>
-                </div>
-                <div class="form-group">
-                    <label for="newUserAge">Age</label>
-                    <input type="number" id="newUserAge" placeholder="18" min="0" max="150" value="18">
-                    <small style="color:var(--text-muted);font-size:12px;">Sets content restrictions. 18+ = no restrictions.</small>
-                </div>
-                <div class="form-group">
-                    <label><input type="checkbox" id="newUserAdmin"> Make this user an admin</label>
-                </div>
+                <div class="form-group"><label for="newUsername">Username</label><input type="text" id="newUsername" placeholder="Enter username" required></div>
+                <div class="form-group"><label for="newEmail">Email</label><input type="email" id="newEmail" placeholder="Enter email" required></div>
+                <div class="form-group"><label for="newUserPassword">Password</label><input type="password" id="newUserPassword" placeholder="Min 8 characters" required></div>
+                <div class="form-group"><label for="newUserAge">Age</label><input type="number" id="newUserAge" placeholder="18" min="0" max="150" value="18"><small style="color:var(--text-muted);font-size:12px;">Under 18 = content filtered. 18+ = unrestricted.</small></div>
+                <div class="form-group"><label><input type="checkbox" id="newUserAdmin"> Make admin</label></div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
@@ -168,21 +217,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Set User Age</h2>
-                <button class="close-modal" onclick="closeModal('setAgeModal')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <button class="close-modal" onclick="closeModal('setAgeModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div class="modal-body">
                 <p>Set age for: <strong id="setAgeUserName"></strong></p>
-                <div class="form-group">
-                    <label for="setAgeValue">Age</label>
-                    <input type="number" id="setAgeValue" min="0" max="150" value="18">
-                    <small style="color:var(--text-muted);font-size:12px;">Under 18: content is filtered by age group. 18+: no restrictions.</small>
-                </div>
+                <div class="form-group"><label for="setAgeValue">Age</label><input type="number" id="setAgeValue" min="0" max="150" value="18"><small style="color:var(--text-muted);font-size:12px;">Under 18 = content filtered. 18+ = unrestricted.</small></div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal('setAgeModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmSetAge()">Save Age</button>
+                <button class="btn btn-primary" onclick="confirmSetAge()">Save</button>
             </div>
         </div>
     </div>
@@ -192,20 +235,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Change Password</h2>
-                <button class="close-modal" onclick="closeModal('changePasswordModal')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <button class="close-modal" onclick="closeModal('changePasswordModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div class="modal-body">
                 <p>Change password for: <strong id="changePasswordUserName"></strong></p>
-                <div class="form-group">
-                    <label for="newPassword">New Password</label>
-                    <input type="password" id="newPassword" placeholder="Enter new password" required>
-                </div>
+                <div class="form-group"><label for="newPassword">New Password</label><input type="password" id="newPassword" placeholder="Min 8 characters" required></div>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal('changePasswordModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmChangePassword()">Change Password</button>
+                <button class="btn btn-primary" onclick="confirmChangePassword()">Change</button>
             </div>
         </div>
     </div>
@@ -215,140 +253,177 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Delete User</h2>
-                <button class="close-modal" onclick="closeModal('deleteUserModal')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
+                <button class="close-modal" onclick="closeModal('deleteUserModal')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteUserName"></strong>? This will also delete all their chats and messages. This cannot be undone.</p>
+                <p>Delete <strong id="deleteUserName"></strong> and all their chats? This cannot be undone.</p>
             </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal('deleteUserModal')">Cancel</button>
-                <button class="btn btn-danger" onclick="confirmDeleteUser()">Delete User</button>
+                <button class="btn btn-danger" onclick="confirmDeleteUser()">Delete</button>
             </div>
         </div>
     </div>
 
     <script>
         let currentUserId = null;
-        let currentAction = null;
+        let logsOffset = 0;
+        const LOGS_PER_PAGE = 100;
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadDashboardStats();
+            loadDashboard();
             document.querySelectorAll('.admin-nav-item').forEach(item => {
-                item.addEventListener('click', (e) => {
+                item.addEventListener('click', e => {
                     e.preventDefault();
-                    const section = item.dataset.section;
-                    if (section) showSection(section);
+                    const s = item.dataset.section;
+                    if (s) showSection(s);
                 });
             });
-            document.getElementById('userSearch').addEventListener('input', (e) => {
-                filterUsers(e.target.value);
-            });
-            document.querySelectorAll('.modal').forEach(modal => {
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) modal.classList.remove('active');
-                });
+            document.querySelectorAll('.modal').forEach(m => {
+                m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
             });
         });
 
-        function showSection(section) {
+        function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+
+        function showSection(name) {
             document.querySelectorAll('.admin-nav-item').forEach(i => i.classList.remove('active'));
             document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
-            const navItem = document.querySelector('[data-section="' + section + '"]');
-            if (navItem) navItem.classList.add('active');
-            const sectionEl = document.getElementById(section);
-            if (sectionEl) sectionEl.classList.add('active');
-            if (section === 'users') loadUsers();
-            else if (section === 'dashboard') loadDashboardStats();
+            const nav = document.querySelector('[data-section="'+name+'"]');
+            if (nav) nav.classList.add('active');
+            const sec = document.getElementById(name);
+            if (sec) sec.classList.add('active');
+            if (name === 'dashboard') loadDashboard();
+            else if (name === 'users') loadUsers();
+            else if (name === 'chats') loadAllChats();
+            else if (name === 'logs') { logsOffset = 0; loadLogs(); }
         }
 
-        async function loadDashboardStats() {
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        // ===== DASHBOARD =====
+        async function loadDashboard() {
             try {
-                const response = await fetch('/api/admin/users');
-                const data = await response.json();
-                if (data.success) {
-                    const users = data.users || [];
-                    document.getElementById('totalUsers').textContent = users.length;
-                    document.getElementById('totalAdmins').textContent = users.filter(u => u.is_admin === 1).length;
-                    const chatsResponse = await fetch('/api/chats');
-                    const chatsData = await chatsResponse.json();
-                    document.getElementById('totalChats').textContent = chatsData.chats?.length || 0;
-                }
-            } catch (error) {
-                console.error('Failed to load stats:', error);
-            }
+                const res = await fetch('/api/admin/stats');
+                const data = await res.json();
+                if (!data.success) return;
+                const s = data.stats;
+                document.getElementById('dashStats').innerHTML = [
+                    { label:'Users', value:s.userCount, icon:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z' },
+                    { label:'Chats', value:s.chatCount, icon:'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+                    { label:'Messages', value:s.messageCount, icon:'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z' },
+                    { label:'Logins (24h)', value:s.recentLogins, icon:'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3' },
+                    { label:'Messages (24h)', value:s.recentMessages, icon:'M22 2L11 13 M22 2l-7 20-4-9-9-4z' },
+                ].map(c => '<div class="stat-card"><div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+c.icon+'</svg></div><div class="stat-info"><span class="stat-value">'+c.value+'</span><span class="stat-label">'+c.label+'</span></div></div>').join('');
+
+                const statusColor = s.ollamaStatus === 'connected' ? 'var(--success)' : 'var(--danger)';
+                document.getElementById('dashStats').innerHTML += '<div class="stat-card"><div class="stat-icon" style="color:'+statusColor+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-info"><span class="stat-value" style="color:'+statusColor+';font-size:16px;">'+s.ollamaStatus+'</span><span class="stat-label">Ollama</span></div></div>';
+            } catch (e) { console.error('Dashboard error:', e); }
         }
 
+        // ===== USERS =====
         async function loadUsers() {
             try {
-                const response = await fetch('/api/admin/users');
-                const data = await response.json();
-                if (data.success) {
-                    const users = data.users || [];
-                    const tbody = document.getElementById('usersTableBody');
-                    tbody.innerHTML = '';
-                    users.forEach(user => {
-                        const row = document.createElement('tr');
-                        const age = user.age != null ? user.age : 18;
-                        const ageLabel = age >= 18 ? age : age + ' (restricted)';
-                        row.innerHTML = '<td>' + user.id + '</td>' +
-                            '<td>' + escapeHtml(user.username) + '</td>' +
-                            '<td>' + escapeHtml(user.email) + '</td>' +
-                            '<td><span class="badge ' + (user.is_admin ? 'badge-admin' : 'badge-user') + '">' + (user.is_admin ? 'Admin' : 'User') + '</span></td>' +
-                            '<td><span style="cursor:pointer;color:var(--accent-primary)" onclick="promptSetAge(' + user.id + ', \'' + escapeHtml(user.username) + '\', ' + age + ')" title="Click to change age">' + ageLabel + '</span></td>' +
-                            '<td><span style="color:' + (user.verified ? 'var(--success)' : 'var(--danger)') + ';">' + (user.verified ? 'Verified' : 'Unverified') + '</span></td>' +
-                            '<td><code style="font-size:12px;background:var(--bg-input);padding:2px 6px;border-radius:4px;">' + (user.verification_code || (user.verified ? 'N/A' : 'No code')) + '</code></td>' +
-                            '<td>' + new Date(user.created_at).toLocaleDateString() + '</td>' +
-                            '<td><div class="action-buttons">' +
-                            (!user.verified ? '<button class="action-btn" onclick="resendVerification(' + user.id + ', \'' + escapeHtml(user.username) + '\')" title="Resend Verification Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>' : '') +
-                            '<button class="action-btn" onclick="promptSetAge(' + user.id + ', \'' + escapeHtml(user.username) + '\', ' + age + ')" title="Set Age"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></button>' +
-                            '<button class="action-btn" onclick="promptChangePassword(' + user.id + ', \'' + escapeHtml(user.username) + '\')" title="Change Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>' +
-                            '<button class="action-btn action-btn-danger" onclick="promptDeleteUser(' + user.id + ', \'' + escapeHtml(user.username) + '\')" title="Delete User"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' +
-                            '</div></td>';
-                        tbody.appendChild(row);
-                    });
-                }
-            } catch (error) {
-                console.error('Failed to load users:', error);
-                document.getElementById('usersTableBody').innerHTML = '<tr><td colspan="9">Failed to load users</td></tr>';
-            }
-        }
-
-        function escapeHtml(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-        }
-
-        async function resendVerification(userId, username) {
-            try {
-                const response = await fetch('/api/admin/resend-verification', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId })
+                const res = await fetch('/api/admin/users');
+                const data = await res.json();
+                if (!data.success) return;
+                const tbody = document.getElementById('usersTableBody');
+                tbody.innerHTML = '';
+                data.users.forEach(u => {
+                    const age = u.age != null ? u.age : 18;
+                    const ageLabel = age >= 18 ? age : age + ' (filtered)';
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td>'+u.id+'</td><td>'+esc(u.username)+'</td><td>'+esc(u.email)+'</td><td><span class="badge '+(u.is_admin?'badge-admin':'badge-user')+'">'+(u.is_admin?'Admin':'User')+'</span></td><td><span style="cursor:pointer;color:var(--accent-primary)" onclick="promptSetAge('+u.id+',"'+esc(u.username)+'",'+age+')">'+ageLabel+'</span></td><td><span style="color:'+(u.verified?'var(--success)':'var(--danger)')+'">'+(u.verified?'Yes':'No')+'</span></td><td><code style="font-size:11px;background:var(--bg-input);padding:2px 6px;border-radius:4px;">'+(u.verification_code||(u.verified?'N/A':'None'))+'</code></td><td>'+new Date(u.created_at).toLocaleDateString()+'</td><td><div class="action-buttons">'+(!u.verified?'<button class="action-btn" onclick="resendVerification('+u.id+',"'+esc(u.username)+'")" title="Resend Code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>':'')+'<button class="action-btn" onclick="promptSetAge('+u.id+',"'+esc(u.username)+'",'+age+')" title="Set Age"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></button><button class="action-btn" onclick="promptChangePassword('+u.id+',"'+esc(u.username)+'")" title="Change Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button><button class="action-btn action-btn-danger" onclick="promptDeleteUser('+u.id+',"'+esc(u.username)+'")" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>';
+                    tbody.appendChild(row);
                 });
-                const data = await response.json();
-                if (data.success) {
-                    alert('New verification code for ' + username + ': ' + data.verificationCode + '\n\nShare this code with the user.');
-                    loadUsers();
-                } else {
-                    alert(data.error || 'Failed to resend');
-                }
-            } catch (error) {
-                alert('Failed to resend verification code');
-            }
+                document.getElementById('userSearch').addEventListener('input', e => {
+                    const q = e.target.value.toLowerCase();
+                    document.querySelectorAll('#usersTableBody tr').forEach(r => {
+                        r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+                    });
+                });
+            } catch (e) { console.error('Load users:', e); }
         }
 
-        function filterUsers(searchTerm) {
-            document.querySelectorAll('#usersTableBody tr').forEach(row => {
-                row.style.display = row.textContent.toLowerCase().includes(searchTerm.toLowerCase()) ? '' : 'none';
+        // ===== CHATS =====
+        async function loadAllChats() {
+            const el = document.getElementById('chatsList');
+            el.innerHTML = '<div class="empty-state">Loading...</div>';
+            try {
+                const res = await fetch('/api/admin/chats-all');
+                const data = await res.json();
+                if (!data.success || !data.chats.length) { el.innerHTML = '<div class="empty-state">No chats found</div>'; return; }
+                el.innerHTML = data.chats.map(c => '<div class="chat-row" data-title="'+esc((c.title||'').toLowerCase())+'"><div class="chat-row-info"><div class="chat-row-title">'+esc(c.title||'New Chat')+'</div><div class="chat-row-meta">'+esc(c.username||'unknown')+' &middot; '+c.message_count+' messages &middot; '+new Date(c.created_at).toLocaleDateString()+'</div></div><div class="chat-row-actions"><button class="action-btn action-btn-danger" onclick="deleteAdminChat(\''+c.chat_id+'\')" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div>').join('');
+            } catch (e) { el.innerHTML = '<div class="empty-state">Failed to load chats</div>'; }
+        }
+
+        function filterChats(q) {
+            q = q.toLowerCase();
+            document.querySelectorAll('#chatsList .chat-row').forEach(r => {
+                r.style.display = r.dataset.title.includes(q) ? '' : 'none';
             });
         }
 
+        async function deleteAdminChat(chatId) {
+            if (!confirm('Delete this chat?')) return;
+            try {
+                await fetch('/api/admin/chats-all/' + chatId, { method: 'DELETE' });
+                loadAllChats();
+            } catch (e) { alert('Failed'); }
+        }
+
+        // ===== LOGS =====
+        async function loadLogs() {
+            const el = document.getElementById('logsContainer');
+            if (logsOffset === 0) el.innerHTML = '';
+            try {
+                const res = await fetch('/api/admin/logs?limit=' + LOGS_PER_PAGE + '&offset=' + logsOffset);
+                const data = await res.json();
+                if (!data.success) return;
+                const logs = data.logs;
+                const filter = document.getElementById('logFilter').value;
+                const filtered = filter ? logs.filter(l => l.event_type.includes(filter)) : logs;
+                const html = filtered.map(l => {
+                    let type = 'other';
+                    if (l.event_type.includes('login')) type = 'login';
+                    else if (l.event_type.includes('message')) type = 'message';
+                    else if (l.event_type.includes('error') || l.event_type.includes('rate')) type = 'error';
+                    else if (l.event_type.includes('admin') || l.event_type.includes('register') || l.event_type.includes('age') || l.event_type.includes('verify') || l.event_type.includes('announce') || l.event_type.includes('settings')) type = 'admin';
+                    let detail = '';
+                    try { const d = JSON.parse(l.details); detail = Object.entries(d).map(([k,v]) => k+':'+v).join(', '); } catch(e) { detail = l.details || ''; }
+                    return '<div class="log-entry" data-type="'+l.event_type+'"><span class="log-ts">'+new Date(l.created_at).toLocaleString()+'</span><span class="log-type '+type+'">'+l.event_type+'</span><span class="log-detail">'+esc(l.username||'system')+' &middot; '+esc(detail)+'</span></div>';
+                }).join('');
+                if (logsOffset === 0 && !html) el.innerHTML = '<div class="empty-state">No logs found</div>';
+                else el.innerHTML += html;
+                document.getElementById('loadMoreLogsBtn').style.display = data.total > logsOffset + LOGS_PER_PAGE ? 'inline-block' : 'none';
+            } catch (e) { console.error('Load logs:', e); }
+        }
+
+        function filterLogs() { logsOffset = 0; document.getElementById('logsContainer').innerHTML = ''; loadLogs(); }
+        function loadMoreLogs() { logsOffset += LOGS_PER_PAGE; loadLogs(); }
+
+        // ===== ANNOUNCEMENTS =====
+        async function sendAnnouncement() {
+            const msg = document.getElementById('announceMessage').value.trim();
+            if (!msg) { alert('Type a message first'); return; }
+            if (!confirm('Send this announcement to all users?')) return;
+            try {
+                const res = await fetch('/api/admin/announce', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('announceResult').textContent = 'Sent to ' + data.userCount + ' users!';
+                    document.getElementById('announceMessage').value = '';
+                    setTimeout(() => { document.getElementById('announceResult').textContent = ''; }, 5000);
+                } else { alert(data.error || 'Failed'); }
+            } catch (e) { alert('Failed to send'); }
+        }
+
+        // ===== USER ACTIONS =====
         function showCreateUserModal() {
-            document.getElementById('newUsername').value = '';
-            document.getElementById('newEmail').value = '';
-            document.getElementById('newUserPassword').value = '';
+            ['newUsername','newEmail','newUserPassword'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('newUserAge').value = '18';
             document.getElementById('newUserAdmin').checked = false;
             document.getElementById('createUserModal').classList.add('active');
@@ -360,40 +435,22 @@
             const password = document.getElementById('newUserPassword').value;
             const age = parseInt(document.getElementById('newUserAge').value) || 18;
             const isAdmin = document.getElementById('newUserAdmin').checked;
-
-            if (!username || !email || !password) {
-                alert('All fields are required');
-                return;
-            }
-            if (password.length < 8) {
-                alert('Password must be at least 8 characters');
-                return;
-            }
-
+            if (!username || !email || !password) { alert('All fields required'); return; }
+            if (password.length < 8) { alert('Password min 8 chars'); return; }
             try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const res = await fetch('/api/register', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, email, password, isAdmin })
                 });
-                const data = await response.json();
+                const data = await res.json();
                 if (data.success) {
-                    if (age !== 18) {
-                        await fetch('/api/admin/set-age', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: data.user.id, age })
-                        });
-                    }
+                    if (age !== 18) await fetch('/api/admin/set-age', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId: data.user.id, age }) });
                     closeModal('createUserModal');
+                    const code = data.verificationCode || 'unknown';
+                    alert('User created! Verification code: ' + code + '\n\nShare this with the user.');
                     loadUsers();
-                    loadDashboardStats();
-                } else {
-                    alert(data.error || 'Failed to create user');
-                }
-            } catch (error) {
-                alert('Failed to create user');
-            }
+                } else { alert(data.error || 'Failed'); }
+            } catch (e) { alert('Failed to create user'); }
         }
 
         function promptSetAge(userId, username, currentAge) {
@@ -405,23 +462,10 @@
 
         async function confirmSetAge() {
             const age = parseInt(document.getElementById('setAgeValue').value);
-            if (isNaN(age) || age < 0 || age > 150) {
-                alert('Please enter a valid age (0-150)');
-                return;
-            }
-            try {
-                const response = await fetch('/api/admin/set-age', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUserId, age })
-                });
-                if (response.ok) {
-                    closeModal('setAgeModal');
-                    loadUsers();
-                }
-            } catch (error) {
-                alert('Failed to set age');
-            }
+            if (isNaN(age) || age < 0 || age > 150) { alert('Invalid age'); return; }
+            await fetch('/api/admin/set-age', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId: currentUserId, age }) });
+            closeModal('setAgeModal');
+            loadUsers();
         }
 
         function promptChangePassword(userId, username) {
@@ -432,24 +476,10 @@
         }
 
         async function confirmChangePassword() {
-            const newPassword = document.getElementById('newPassword').value;
-            if (!newPassword || newPassword.length < 8) {
-                alert('Password must be at least 8 characters');
-                return;
-            }
-            try {
-                const response = await fetch('/api/admin/change-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUserId, newPassword })
-                });
-                if (response.ok) {
-                    closeModal('changePasswordModal');
-                    alert('Password changed successfully');
-                }
-            } catch (error) {
-                alert('Failed to change password');
-            }
+            const pw = document.getElementById('newPassword').value;
+            if (!pw || pw.length < 8) { alert('Min 8 chars'); return; }
+            const res = await fetch('/api/admin/change-password', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId: currentUserId, newPassword: pw }) });
+            if (res.ok) { closeModal('changePasswordModal'); alert('Password changed'); }
         }
 
         function promptDeleteUser(userId, username) {
@@ -459,20 +489,17 @@
         }
 
         async function confirmDeleteUser() {
-            try {
-                const response = await fetch('/api/admin/users/' + currentUserId, { method: 'DELETE' });
-                if (response.ok) {
-                    closeModal('deleteUserModal');
-                    loadUsers();
-                    loadDashboardStats();
-                }
-            } catch (error) {
-                alert('Failed to delete user');
-            }
+            const res = await fetch('/api/admin/users/' + currentUserId, { method:'DELETE' });
+            if (res.ok) { closeModal('deleteUserModal'); loadUsers(); }
         }
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
+        async function resendVerification(userId, username) {
+            try {
+                const res = await fetch('/api/admin/resend-verification', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ userId }) });
+                const data = await res.json();
+                if (data.success) { alert('New code for ' + username + ': ' + data.verificationCode); loadUsers(); }
+                else alert(data.error || 'Failed');
+            } catch (e) { alert('Failed'); }
         }
     </script>
 </body>

@@ -23,12 +23,12 @@ class ZigApp {
         this.closeSettingsModalBtn = document.getElementById('closeSettingsModalBtn');
         this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
         this.cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
-        this.intSpotify = document.getElementById('intSpotify');
-        this.spotifyEndpoint = document.getElementById('spotifyEndpoint');
-        this.intHomeAssistant = document.getElementById('intHomeAssistant');
-        this.homeAssistantEndpoint = document.getElementById('homeAssistantEndpoint');
-        this.intCanva = document.getElementById('intCanva');
-        this.canvaEndpoint = document.getElementById('canvaEndpoint');
+        this.settingsModel = document.getElementById('settingsModel');
+        this.settingsSystemPrompt = document.getElementById('settingsSystemPrompt');
+        this.settingsCompact = document.getElementById('settingsCompact');
+        this.settingsTimestamps = document.getElementById('settingsTimestamps');
+        this.settingsVoiceEnabled = document.getElementById('settingsVoiceEnabled');
+        this.settingsAutoRecord = document.getElementById('settingsAutoRecord');
 
         this.webSearchBtn = document.getElementById('webSearchBtn');
         this.searchModal = document.getElementById('searchModal');
@@ -279,7 +279,7 @@ class ZigApp {
     }
 
     async createNewChat() {
-        if (!this.user) { window.location.href = '/login'; return; }
+        if (!this.user) { window.location.href = '/login'; return null; }
         this.showLoading();
         try {
             const response = await fetch('/api/chats', {
@@ -292,11 +292,14 @@ class ZigApp {
                 this.currentChatId = data.chat.chat_id;
                 this.loadChats();
                 this.loadChat(this.currentChatId);
+                return data.chat.chat_id;
             } else {
                 this.showError(data.error || 'Failed to create chat');
+                return null;
             }
         } catch (error) {
             this.showError('Failed to create chat');
+            return null;
         } finally {
             this.hideLoading();
         }
@@ -398,7 +401,12 @@ class ZigApp {
 
     async sendMessage() {
         const content = this.messageInput.value.trim();
-        if (!content || !this.currentChatId || this.isSending) return;
+        if (!content || this.isSending) return;
+        if (!this.currentChatId) {
+            const chatId = await this.createNewChat();
+            if (!chatId) return;
+            this.currentChatId = chatId;
+        }
         this.isSending = true;
         this.messageInput.disabled = true;
         this.sendBtn.disabled = true;
@@ -492,13 +500,30 @@ class ZigApp {
 
     showSettingsModal() {
         this.loadUserSettings().then(settings => {
-            const ints = (settings && settings.integrations) || {};
-            if (this.intSpotify) this.intSpotify.checked = !!ints.spotify;
-            if (this.spotifyEndpoint) this.spotifyEndpoint.value = ints.spotifyEndpoint || '';
-            if (this.intHomeAssistant) this.intHomeAssistant.checked = !!ints.homeassistant;
-            if (this.homeAssistantEndpoint) this.homeAssistantEndpoint.value = ints.homeAssistantEndpoint || '';
-            if (this.intCanva) this.intCanva.checked = !!ints.canva;
-            if (this.canvaEndpoint) this.canvaEndpoint.value = ints.canvaEndpoint || '';
+            const s = settings || {};
+            const profile = s.profile || {};
+            const appearance = s.appearance || {};
+            const voice = s.voice || {};
+
+            const initial = this.userInitial ? this.userInitial.textContent : (this.user?.username || '?')[0].toUpperCase();
+            const username = this.user?.username || 'unknown';
+            const age = this.user?.age ?? 18;
+
+            if (document.getElementById('settingsAvatar')) document.getElementById('settingsAvatar').textContent = initial;
+            if (document.getElementById('settingsUsername')) document.getElementById('settingsUsername').textContent = username;
+            if (document.getElementById('settingsAgeInfo')) {
+                document.getElementById('settingsAgeInfo').textContent = age >= 18 ? 'Age ' + age + ' (unrestricted)' : 'Age ' + age + ' (content filtered)';
+            }
+
+            if (this.settingsModel) {
+                this.settingsModel.innerHTML = this.models.map(m => '<option value="' + m + '"' + (m === this.currentModel ? ' selected' : '') + '>' + m + '</option>').join('');
+            }
+            if (this.settingsSystemPrompt) this.settingsSystemPrompt.value = profile.systemPrompt || '';
+            if (this.settingsCompact) this.settingsCompact.checked = !!appearance.compact;
+            if (this.settingsTimestamps) this.settingsTimestamps.checked = appearance.timestamps !== false;
+            if (this.settingsVoiceEnabled) this.settingsVoiceEnabled.checked = voice.enabled !== false;
+            if (this.settingsAutoRecord) this.settingsAutoRecord.checked = !!voice.autoRecord;
+
             if (this.settingsModal) this.settingsModal.classList.add('active');
         }).catch(() => {
             if (this.settingsModal) this.settingsModal.classList.add('active');
@@ -510,26 +535,31 @@ class ZigApp {
     }
 
     async saveSettings() {
-        const integrations = {
-            spotify: !!(this.intSpotify && this.intSpotify.checked),
-            spotifyEndpoint: this.spotifyEndpoint ? this.spotifyEndpoint.value.trim() : '',
-            homeassistant: !!(this.intHomeAssistant && this.intHomeAssistant.checked),
-            homeAssistantEndpoint: this.homeAssistantEndpoint ? this.homeAssistantEndpoint.value.trim() : '',
-            canva: !!(this.intCanva && this.intCanva.checked),
-            canvaEndpoint: this.canvaEndpoint ? this.canvaEndpoint.value.trim() : ''
+        const settings = {
+            profile: {
+                systemPrompt: this.settingsSystemPrompt ? this.settingsSystemPrompt.value.trim() : ''
+            },
+            appearance: {
+                compact: this.settingsCompact ? this.settingsCompact.checked : false,
+                timestamps: this.settingsTimestamps ? this.settingsTimestamps.checked : true
+            },
+            voice: {
+                enabled: this.settingsVoiceEnabled ? this.settingsVoiceEnabled.checked : true,
+                autoRecord: this.settingsAutoRecord ? this.settingsAutoRecord.checked : false
+            }
         };
-        const payload = { integrations };
         this.showLoading();
         try {
             const res = await fetch('/api/user/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ settings: payload })
+                body: JSON.stringify({ settings })
             });
             const data = await res.json();
             if (data.success) {
                 this.closeSettingsModal();
                 this.showError('Settings saved');
+                if (this.settingsCompact) document.body.classList.toggle('compact', this.settingsCompact.checked);
             } else {
                 this.showError(data.error || 'Failed to save settings');
             }
