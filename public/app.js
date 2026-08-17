@@ -79,6 +79,9 @@ class ZigApp {
             });
             this.messageInput.addEventListener('input', () => this.autoResizeTextarea());
         }
+        document.querySelectorAll('.example-btn[data-example-prompt]').forEach(btn => {
+            btn.addEventListener('click', () => this.useExample(btn.dataset.examplePrompt));
+        });
         if (this.adminBtn) {
             this.adminBtn.addEventListener('click', () => { window.location.href = '/admin'; });
         }
@@ -707,6 +710,33 @@ class ZigApp {
         this.uploadedFilename = null;
         const preview = document.getElementById('uploadPreview');
         if (preview) preview.style.display = 'none';
+    }
+
+    async changePassword() {
+        const currentPw = document.getElementById('settingsCurrentPw')?.value || '';
+        const newPw = document.getElementById('settingsNewPw')?.value || '';
+        const code = document.getElementById('settingsPwCode')?.value || '';
+        const result = document.getElementById('pwChangeResult');
+        if (!currentPw || !newPw) { if (result) { result.textContent = 'Fill all fields'; result.style.color = 'var(--danger)'; } return; }
+        if (newPw.length < 8) { if (result) { result.textContent = 'Min 8 chars'; result.style.color = 'var(--danger)'; } return; }
+        try {
+            const res = await fetch('/api/user/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw, code })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (result) { result.textContent = 'Password changed!'; result.style.color = 'var(--success)'; }
+                document.getElementById('settingsCurrentPw').value = '';
+                document.getElementById('settingsNewPw').value = '';
+                document.getElementById('settingsPwCode').value = '';
+            } else {
+                if (result) { result.textContent = data.error || 'Failed'; result.style.color = 'var(--danger)'; }
+            }
+        } catch (e) {
+            if (result) { result.textContent = 'Failed'; result.style.color = 'var(--danger)'; }
+        }
     }
 
     scrollToBottom() {

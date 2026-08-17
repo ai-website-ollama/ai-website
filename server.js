@@ -129,6 +129,11 @@ try {
   db.prepare('UPDATE users SET verified = 1 WHERE is_admin = 1 AND (verified IS NULL OR verified = 0)').run();
 } catch (_) {}
 
+// App settings table for tracking yearly tasks
+try {
+  db.prepare("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)").run();
+} catch (_) {}
+
 function generateVerificationCode() {
   return crypto.randomInt(100000, 999999).toString();
 }
@@ -804,6 +809,63 @@ app.post('/api/user/settings', isAuthenticated, (req, res) => {
   }
 });
 
+// User self-service: change password with verification code
+app.post('/api/user/change-password', isAuthenticated, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, code } = req.body;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    const validCode = !user.verification_code || code === user.verification_code;
+    const validCurrent = await bcrypt.compare(currentPassword, user.password);
+    if (!validCurrent) return res.status(400).json({ error: 'Current password is incorrect' });
+    if (!validCode) return res.status(400).json({ error: 'Invalid or expired verification code' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    const newCode = generateVerificationCode();
+    db.prepare('UPDATE users SET password = ?, verification_code = ? WHERE id = ?').run(hashed, newCode, user.id);
+    appendDbLog(req, 'password_changed_self', { userId: user.id });
+    res.json({ success: true, message: 'Password changed. Your new verification code: ' + newCode });
+  } catch (error) {
+    console.error('Self change password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
+// User self-service: get verification code
+app.get('/api/user/verification-code', isAuthenticated, (req, res) => {
+  try {
+    const user = db.prepare('SELECT verification_code FROM users WHERE id = ?').get(req.session.user.id);
+    res.json({ success: true, code: user?.verification_code || null });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get code' });
+  }
+});
+
+// Auto-increment age yearly based on account creation date
+(function incrementAgesOnStartup() {
+  try {
+    const lastKey = 'last_age_increment';
+    const lastRow = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(lastKey);
+    const lastYear = lastRow ? parseInt(lastRow.value) : 0;
+    const currentYear = new Date().getFullYear();
+    if (lastYear < currentYear) {
+      db.prepare('UPDATE users SET age = age + 1 WHERE age IS NOT NULL AND age < 150').run();
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").run(lastKey, String(currentYear));
+      console.log('Auto-incremented age for new year:', currentYear);
+    }
+  } catch (e) {
+    console.error('Age increment error:', e);
+  }
+})();
+
 // Admin: set user age
 app.post('/api/admin/set-age', isAdmin, (req, res) => {
   try {
@@ -1020,6 +1082,16 @@ app.listen(PORT, () => {
   console.log(`Model: ${DEFAULT_MODEL}`);
   console.log(`Access at: http://localhost:${PORT}`);
 });
+
+// Rotate verification codes every 30 minutes
+setInterval(() => {
+  try {
+    const users = db.prepare('SELECT id FROM users WHERE verification_code IS NOT NULL').all();
+    const stmt = db.prepare('UPDATE users SET verification_code = ? WHERE id = ?');
+    users.forEach(u => stmt.run(generateVerificationCode(), u.id));
+    if (users.length > 0) console.log('Rotated verification codes for', users.length, 'users');
+  } catch (e) { console.error('Code rotation error:', e); }
+}, 30 * 60 * 1000);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
