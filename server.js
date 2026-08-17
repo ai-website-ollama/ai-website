@@ -656,8 +656,8 @@ app.post('/api/chats/:chatId/messages', isAuthenticated, enforceMessageRateLimit
     
     let assistantMessage = response.data?.message?.content || '';
 
-    // Check if AI wants to search
-    const searchMatch = assistantMessage.match(/\[SEARCH:\s*(.+?)\]/i);
+    // Check if AI wants to search (matches [SEARCH: query] or SEARCH: query)
+    const searchMatch = assistantMessage.match(/(?:\[)?SEARCH:\s*(.+?)(?:\]|$)/im);
     if (searchMatch) {
       const searchQuery = searchMatch[1].trim();
       appendDbLog(req, 'ai_search_triggered', { query: searchQuery }, chatId);
